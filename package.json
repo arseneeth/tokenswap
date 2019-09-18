@@ -28,8 +28,11 @@
     "eslint-plugin-standard": "^4.0.0",
     "ethlint": "^1.2.4",
     "prettier": "^1.18.2",
+    "ethereumjs-testrpc-sc": "^6.5.1-sc.0",
+    "ganache-cli": "^6.4.3",
     "solidity-coverage": "^0.6.2",
-    "truffle": "^5.0.36"
+    "truffle": "4.1.14",
+    "truffle-extract": "^1.2.1"
   },
   "scripts": {
     "start": "npm run start:ipfs",
