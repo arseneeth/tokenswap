@@ -42,9 +42,10 @@ contract('TokenSwap', ([appManager, user]) => {
     await app.initialize()
   })
 
-  it('should set a value', async () => {
-    await app.setValue(10, { from: user })
-    assert.equal(await app.value(), 10)
+  it('print "no tests yet"', async () => {
+    // await app.setValue(10, { from: user })
+    // assert.equal(await app.value(), 10)
+    await console.log("no tests yet");
   })
 
 })
