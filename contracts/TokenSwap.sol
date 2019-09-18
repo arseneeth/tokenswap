@@ -1,11 +1,20 @@
 pragma solidity ^0.4.24;
 
 import "@aragon/os/contracts/apps/AragonApp.sol";
-// import "@aragon/os/contracts/lib/math/SafeMath.sol";
+import "@aragon/os/contracts/lib/math/SafeMath.sol";
+import "@aragon/os/contracts/common/SafeERC20.sol";
+import "./bancor-formula/BancorFormula.sol";
 
 
-contract TokenSwap is AragonApp{
+// BancorFormula Token A ==> BaseToken == Token B
 
+contract TokenSwap is AragonApp {
+    using SafeERC20 for ERC20;    
+    using SafeMath for uint256;
+
+    IBancorFormula public formula;
+    ERC20          public token;
+    
 	/// ACL
     bytes32 constant public ADMIN_ROLE = keccak256("ADMIN_ROLE");
 

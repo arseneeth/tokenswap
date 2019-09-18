@@ -182,7 +182,10 @@ contract BancorFormula is IBancorFormula, Utils {
 
         @return purchase return amount
     */
-    function calculatePurchaseReturn(uint256 _supply, uint256 _connectorBalance, uint32 _connectorWeight, uint256 _depositAmount) public view returns (uint256) {
+    function calculatePurchaseReturn(uint256 _supply, 
+                                     uint256 _connectorBalance, 
+                                     uint32 _connectorWeight, 
+                                     uint256 _depositAmount) public view returns (uint256) {
         // validate input
         require(_supply > 0 && _connectorBalance > 0 && _connectorWeight > 0 && _connectorWeight <= MAX_WEIGHT);
 
@@ -216,7 +219,10 @@ contract BancorFormula is IBancorFormula, Utils {
 
         @return sale return amount
     */
-    function calculateSaleReturn(uint256 _supply, uint256 _connectorBalance, uint32 _connectorWeight, uint256 _sellAmount) public view returns (uint256) {
+    function calculateSaleReturn(uint256 _supply, 
+                                 uint256 _connectorBalance, 
+                                 uint32 _connectorWeight, 
+                                 uint256 _sellAmount) public view returns (uint256) {
         // validate input
         require(_supply > 0 && _connectorBalance > 0 && _connectorWeight > 0 && _connectorWeight <= MAX_WEIGHT && _sellAmount <= _supply);
 
@@ -256,7 +262,11 @@ contract BancorFormula is IBancorFormula, Utils {
 
         @return second connector amount
     */
-    function calculateCrossConnectorReturn(uint256 _fromConnectorBalance, uint32 _fromConnectorWeight, uint256 _toConnectorBalance, uint32 _toConnectorWeight, uint256 _amount) public view returns (uint256) {
+    function calculateCrossConnectorReturn(uint256 _fromConnectorBalance, 
+                                           uint32 _fromConnectorWeight, 
+                                           uint256 _toConnectorBalance, 
+                                           uint32 _toConnectorWeight, 
+                                           uint256 _amount) public view returns (uint256) {
         // validate input
         require(_fromConnectorBalance > 0 && _fromConnectorWeight > 0 && _fromConnectorWeight <= MAX_WEIGHT && _toConnectorBalance > 0 && _toConnectorWeight > 0 && _toConnectorWeight <= MAX_WEIGHT);
 

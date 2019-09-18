@@ -42,7 +42,7 @@ contract('TokenSwap', ([appManager, user]) => {
     await app.initialize()
   })
 
-  it('should be incremented by any address', async () => {
+  it('should set a value', async () => {
     await app.setValue(10, { from: user })
     assert.equal(await app.value(), 10)
   })
