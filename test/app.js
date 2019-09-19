@@ -43,11 +43,12 @@ contract('TokenSwap', ([appManager, user]) => {
   })
 
   it('should create a pool', async () => {
-    tokenAsupply = new web3.BigNumber(100000 * 10 ** 18);
-    tokenBsupply = new web3.BigNumber(9 * 10 ** 18);
-    oraclePrice = new web3.BigNumber(100);
+    tokenAsupply = new web3.BigNumber(332 * 10 ** 18);
+    tokenBsupply = new web3.BigNumber(29 * 10 ** 18);
+    totalTokenBsupply = new web3.BigNumber(290 * 10 ** 18);
+    exchangeRate = new web3.BigNumber(50000); 
     
-    await app.createPool(tokenAsupply, tokenBsupply, oraclePrice, { from: user })
+    await app.createPool(tokenAsupply, tokenBsupply, totalTokenBsupply, exchangeRate, { from: user })
     // assert.equal(await app.value(), 10)
     await console.log(await app.pools(0));
   })

@@ -16,31 +16,43 @@ contract TokenSwap is AragonApp {
         // address tokenB; // Reserve Asset
         uint256 tokenAsupply;
         uint256 tokenBsupply;
-        uint256 reserveRatio;
+        uint32  reserveRatio;
         uint256 exchageRate; // A => B
     }
+    
     Pool[]         public pools;
     IBancorFormula public formula;
     ERC20          public token;
+
+    uint32  public constant PPM      = 1000000;  // parts per million
+
+    function getReserveRatio(
+        uint256 _exchangeRate, 
+        uint256 _tokenSupply, 
+        uint256 _totalTokenSupply
+        ) internal 
+          returns(uint32)
+    {
+        return uint32(uint256(PPM).mul(_tokenSupply.div(_exchangeRate.mul(_totalTokenSupply))));
+    }
 
 
     function createPool(
         // address _tokenA, 
         // address _tokenB,
-        uint256 _tokenAsupply,
-        uint256 _tokenBsupply,
-        uint256 _oraclePrice  //TODO: implement slippege
+        uint256    _tokenAsupply,
+        uint256    _tokenBsupply,
+        uint256    _totalTokenBsupply, // TODO: change to ERC20 getSUpply!
+        uint256    _exchangeRate // the price of token A in token B
         ) external 
-          // returns(bool)
+          returns(bool)
     {
         uint _id = pools.length++;
         Pool storage p = pools[_id];
 
-        //TODO: use safeMath
-        uint256 _marketCap = _oraclePrice.mul(_tokenBsupply);
-        uint256 _reserveRatio = _tokenAsupply.div(_marketCap);
-        uint256 _product = _tokenBsupply.mul(_reserveRatio);
-        uint256 _exchangeRate = _tokenAsupply.div(_product);
+        uint32 _reserveRatio = getReserveRatio(_exchangeRate, 
+                                               _tokenBsupply, 
+                                               _totalTokenBsupply);
 
         p.provider     = msg.sender;
         // p.tokenA       = _tokenA;
@@ -49,8 +61,9 @@ contract TokenSwap is AragonApp {
         p.tokenBsupply = _tokenBsupply;
         p.reserveRatio = _reserveRatio;
         p.exchageRate  = _exchangeRate;
-    }
 
+        return true;
+    } 
 
 	/// ACL
     bytes32 constant public ADMIN_ROLE = keccak256("ADMIN_ROLE");
@@ -60,28 +73,36 @@ contract TokenSwap is AragonApp {
     }
 
     // temporary
-    uint256 poolBalance;
-    uint32  reserveRatio;
+    // uint256 poolBalance;
+    // uint32  reserveRatio;
 
-    function buy(uint totalSupply_) public payable returns(bool) {
-        require(msg.value > 0);
-        uint256 tokensToMint = formula.calculatePurchaseReturn(totalSupply_, poolBalance, reserveRatio, msg.value);
-        totalSupply_ = totalSupply_.add(tokensToMint);
-        //balances[msg.sender] = balances[msg.sender].add(tokensToMint);
-        poolBalance = poolBalance.add(msg.value);
-        // LogMint(tokensToMint, msg.value);
+    function buy(uint256 _poolId, uint256 _buyAmount) public returns(bool) {
+
+        uint256 totalSupply =  pools[_poolId].tokenBsupply;
+        uint256 poolBalance =  pools[_poolId].tokenAsupply;
+        uint32  reserveRatio = pools[_poolId].reserveRatio;
+
+        uint256 tokensToSend = formula.calculatePurchaseReturn(totalSupply, poolBalance, reserveRatio, _buyAmount);
+        pools[_poolId].tokenBsupply = totalSupply.sub(tokensToSend);
+        pools[_poolId].tokenAsupply = poolBalance.add(_buyAmount);
+
+        //TODO: change to safe
+        // pools[_poolId].exchageRate  = 
+
         return true;
     }
 
-    function sell(uint256 sellAmount, uint totalSupply_) public returns(bool) {
-        //require(sellAmount > 0 && balances[msg.sender] >= sellAmount);
-        uint256 ethAmount = formula.calculateSaleReturn(totalSupply_, poolBalance, reserveRatio, sellAmount);
-        msg.sender.transfer(ethAmount);
-        poolBalance = poolBalance.sub(ethAmount);
-        //balances[msg.sender] = balances[msg.sender].sub(sellAmount);
-        totalSupply_ = totalSupply_.sub(sellAmount);
-        // LogWithdraw(sellAmount, ethAmount);
-        return true;
-    }
+    // function sell(uint256 _poolId, uint256 sellAmount) public returns(bool) {
+    //     //require(sellAmount > 0 && balances[msg.sender] >= sellAmount);
+
+    //     uint256 ethAmount = formula.calculateSaleReturn(totalSupply_, poolBalance, reserveRatio, sellAmount);
+    //     msg.sender.transfer(ethAmount);
+    //     poolBalance = poolBalance.sub(ethAmount);
+    //     //balances[msg.sender] = balances[msg.sender].sub(sellAmount);
+    //     totalSupply_ = totalSupply_.sub(sellAmount);
+    //     // LogWithdraw(sellAmount, ethAmount);
+
+    //     return true;
+    // }
 
 }
