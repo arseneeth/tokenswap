@@ -42,10 +42,14 @@ contract('TokenSwap', ([appManager, user]) => {
     await app.initialize()
   })
 
-  it('print "no tests yet"', async () => {
-    // await app.setValue(10, { from: user })
+  it('should create a pool', async () => {
+    tokenAsupply = new web3.BigNumber(100000 * 10 ** 18);
+    tokenBsupply = new web3.BigNumber(9 * 10 ** 18);
+    oraclePrice = new web3.BigNumber(100);
+    
+    await app.createPool(tokenAsupply, tokenBsupply, oraclePrice, { from: user })
     // assert.equal(await app.value(), 10)
-    await console.log("no tests yet");
+    await console.log(await app.pools(0));
   })
 
 })

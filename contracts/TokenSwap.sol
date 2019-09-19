@@ -12,8 +12,8 @@ contract TokenSwap is AragonApp {
 
     struct Pool{
         address provider;
-        address tokenA; // Base Asset
-        address tokenB; // Reserve Asset
+        // address tokenA; // Base Asset  
+        // address tokenB; // Reserve Asset
         uint256 tokenAsupply;
         uint256 tokenBsupply;
         uint256 reserveRatio;
@@ -25,22 +25,30 @@ contract TokenSwap is AragonApp {
 
 
     function createPool(
-        address _tokenA,
-        address _tokenB,
+        // address _tokenA, 
+        // address _tokenB,
         uint256 _tokenAsupply,
         uint256 _tokenBsupply,
         uint256 _oraclePrice  //TODO: implement slippege
         ) external 
+          // returns(bool)
     {
         uint _id = pools.length++;
         Pool storage p = pools[_id];
 
-        //TODO: calculate reserve ratio
-        p.provider = msg.sender;
-        p.tokenA = _tokenA;
-        p.tokenB = _tokenB;
+        //TODO: use safeMath
+        uint256 _marketCap = _oraclePrice.mul(_tokenBsupply);
+        uint256 _reserveRatio = _tokenAsupply.div(_marketCap);
+        uint256 _product = _tokenBsupply.mul(_reserveRatio);
+        uint256 _exchangeRate = _tokenAsupply.div(_product);
+
+        p.provider     = msg.sender;
+        // p.tokenA       = _tokenA;
+        // p.tokenB       = _tokenB;
         p.tokenAsupply = _tokenAsupply;
         p.tokenBsupply = _tokenBsupply;
+        p.reserveRatio = _reserveRatio;
+        p.exchageRate  = _exchangeRate;
     }
 
 
@@ -53,7 +61,7 @@ contract TokenSwap is AragonApp {
 
     // temporary
     uint256 poolBalance;
-    uint32 reserveRatio;
+    uint32  reserveRatio;
 
     function buy(uint totalSupply_) public payable returns(bool) {
         require(msg.value > 0);
