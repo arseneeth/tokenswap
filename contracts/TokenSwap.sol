@@ -76,18 +76,24 @@ contract TokenSwap is AragonApp {
     // uint256 poolBalance;
     // uint32  reserveRatio;
 
-    function buy(uint256 _poolId, uint256 _buyAmount) public returns(bool) {
+    function buy(uint256 _poolId, uint256 _tokenAamount, uint256 _totalTokenBsupply) public returns(bool) {
 
-        uint256 totalSupply =  pools[_poolId].tokenBsupply;
-        uint256 poolBalance =  pools[_poolId].tokenAsupply;
-        uint32  reserveRatio = pools[_poolId].reserveRatio;
+        uint256 newPrice;
+        uint256 poolBalance     = pools[_poolId].tokenBsupply;
+        uint256 reserveBalance  = pools[_poolId].tokenAsupply;
+        uint32  _reserveRatio   = pools[_poolId].reserveRatio; //TODO: take a look at the convention
 
-        uint256 tokensToSend = formula.calculatePurchaseReturn(totalSupply, poolBalance, reserveRatio, _buyAmount);
-        pools[_poolId].tokenBsupply = totalSupply.sub(tokensToSend);
-        pools[_poolId].tokenAsupply = poolBalance.add(_buyAmount);
+        uint256 tokensToSend = formula.calculatePurchaseReturn(totalSupply, poolBalance, _reserveRatio, _tokenAamount);
+        poolBalance          = totalSupply.sub(tokensToSend);  // send tokens to the buyer
+        reserveBalance       = reserveBalance.add(_tokenAamount);
+        newPrice             = reserveBalance.div(poolBalance);
 
-        //TODO: change to safe
-        // pools[_poolId].exchageRate  = 
+        _reserveRatio = getReserveRatio(reserveBalance.div(poolBalance), poolBalance, _totalTokenBsupply);
+
+
+        pools[_poolId].tokenAsupply = reserveBalance;
+        pools[_poolId].tokenBsupply = poolBalance;
+        pools[_poolId].reserveRatio = _reserveRatio;
 
         return true;
     }
