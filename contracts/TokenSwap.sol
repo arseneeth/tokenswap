@@ -10,10 +10,38 @@ contract TokenSwap is AragonApp {
     using SafeERC20 for ERC20;    
     using SafeMath for uint256;
 
+    struct Pool{
+        address provider;
+        address tokenA; // Base Asset
+        address tokenB; // Reserve Asset
+        uint256 tokenAsupply;
+        uint256 tokenBsupply;
+        uint256 reserveRatio;
+        uint256 exchageRate; // A => B
+    }
+    Pool[]         public pools;
     IBancorFormula public formula;
     ERC20          public token;
-    uint256        public poolBalance;
-    uint32         public reserveRatio;
+
+
+    function createPool(
+        address _tokenA,
+        address _tokenB,
+        uint256 _tokenAsupply,
+        uint256 _tokenBsupply,
+        uint256 _oraclePrice  //TODO: implement slippege
+        ) external 
+    {
+        uint _id = pools.length++;
+        Pool storage p = pools[_id];
+
+        //TODO: calculate reserve ratio
+        p.provider = msg.sender;
+        p.tokenA = _tokenA;
+        p.tokenB = _tokenB;
+        p.tokenAsupply = _tokenAsupply;
+        p.tokenBsupply = _tokenBsupply;
+    }
 
 
 	/// ACL
@@ -22,6 +50,10 @@ contract TokenSwap is AragonApp {
     function initialize() public onlyInit {
         initialized();
     }
+
+    // temporary
+    uint256 poolBalance;
+    uint32 reserveRatio;
 
     function buy(uint totalSupply_) public payable returns(bool) {
         require(msg.value > 0);
@@ -43,6 +75,5 @@ contract TokenSwap is AragonApp {
         // LogWithdraw(sellAmount, ethAmount);
         return true;
     }
-
 
 }
