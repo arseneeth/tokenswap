@@ -38,7 +38,7 @@ contract TokenSwap is AragonApp {
 
 
     function createPool(
-        // address _tokenA, 
+        // address _tokenA, 7
         // address _tokenB,
         uint256    _tokenAsupply,
         uint256    _tokenBsupply,
@@ -83,13 +83,18 @@ contract TokenSwap is AragonApp {
         uint256 reserveBalance  = pools[_poolId].tokenAsupply;
         uint32  _reserveRatio   = pools[_poolId].reserveRatio; //TODO: take a look at the convention
 
-        uint256 tokensToSend = formula.calculatePurchaseReturn(totalSupply, poolBalance, _reserveRatio, _tokenAamount);
-        poolBalance          = totalSupply.sub(tokensToSend);  // send tokens to the buyer
+        uint256 sendAmount = formula.calculatePurchaseReturn(_totalTokenBsupply, 
+                                                               poolBalance, 
+                                                               _reserveRatio, 
+                                                               _tokenAamount);
+
+        poolBalance          = poolBalance.sub(sendAmount);  // send tokens to the buyer
         reserveBalance       = reserveBalance.add(_tokenAamount);
         newPrice             = reserveBalance.div(poolBalance);
 
-        _reserveRatio = getReserveRatio(reserveBalance.div(poolBalance), poolBalance, _totalTokenBsupply);
-
+        _reserveRatio = getReserveRatio(reserveBalance.div(poolBalance), 
+                                                           poolBalance, 
+                                                           _totalTokenBsupply);
 
         pools[_poolId].tokenAsupply = reserveBalance;
         pools[_poolId].tokenBsupply = poolBalance;
@@ -98,17 +103,32 @@ contract TokenSwap is AragonApp {
         return true;
     }
 
-    // function sell(uint256 _poolId, uint256 sellAmount) public returns(bool) {
-    //     //require(sellAmount > 0 && balances[msg.sender] >= sellAmount);
+    function sell(uint256 _poolId, uint256 _tokenBamount, uint256 _totalTokenBsupply) public returns(bool) {
 
-    //     uint256 ethAmount = formula.calculateSaleReturn(totalSupply_, poolBalance, reserveRatio, sellAmount);
-    //     msg.sender.transfer(ethAmount);
-    //     poolBalance = poolBalance.sub(ethAmount);
-    //     //balances[msg.sender] = balances[msg.sender].sub(sellAmount);
-    //     totalSupply_ = totalSupply_.sub(sellAmount);
-    //     // LogWithdraw(sellAmount, ethAmount);
+        uint256 newPrice;
+        uint256 poolBalance     = pools[_poolId].tokenBsupply;
+        uint256 reserveBalance  = pools[_poolId].tokenAsupply;
+        uint32  _reserveRatio   = pools[_poolId].reserveRatio; //TODO: take a look at the convention
 
-    //     return true;
-    // }
+        uint256 sendAmount = formula.calculateSaleReturn(_totalTokenBsupply, 
+                                                        poolBalance, 
+                                                        _reserveRatio, 
+                                                        _tokenBamount);
+        
+        reserveBalance       = reserveBalance.sub(sendAmount);
+        poolBalance          = poolBalance.add(_tokenBamount); 
+        newPrice             = reserveBalance.div(poolBalance);
+
+
+            _reserveRatio = getReserveRatio(reserveBalance.div(poolBalance), 
+                                                           poolBalance, 
+                                                           _totalTokenBsupply);
+
+        pools[_poolId].tokenAsupply = reserveBalance;
+        pools[_poolId].tokenBsupply = poolBalance;
+        pools[_poolId].reserveRatio = _reserveRatio;
+
+        return true;
+    }
 
 }
