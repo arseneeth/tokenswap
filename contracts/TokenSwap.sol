@@ -180,6 +180,44 @@ contract TokenSwap is AragonApp {
         pools[_poolId].exchageRate  = 0;
     }
 
+    function addLiquidity(
+        uint256 _poolId, 
+        uint256 _tokenAliquidity, 
+        uint256 _tokenBliqudity,
+        uint256 _totalTokenBsupply
+        ) external 
+    {
+        require(msg.sender == pools[_poolId].provider,
+                "you are not the owner of the pool");
+        require(pools[_poolId].isActive,
+                "pool is not active");
+        
+        uint256 _tokenAsupply = pools[_poolId].tokenAsupply.add(_tokenAliquidity);
+        uint256 _tokenBsupply = pools[_poolId].tokenBsupply.add(_tokenBliqudity);
+        uint256 _exchangeRate = uint256(PPM).mul(_tokenAsupply).div(_tokenBsupply);
+        
+        updatePool(_poolId, _tokenAsupply, _tokenBsupply, _totalTokenBsupply, _exchangeRate);
+    }
+
+    function removeLiquidity(
+        uint256 _poolId, 
+        uint256 _tokenAliquidity, 
+        uint256 _tokenBliqudity,
+        uint256 _totalTokenBsupply
+        ) external 
+    {
+        require(msg.sender == pools[_poolId].provider,
+                "you are not the owner of the pool");
+        require(pools[_poolId].isActive,
+                "pool is not active");
+        
+        uint256 _tokenAsupply = pools[_poolId].tokenAsupply.sub(_tokenAliquidity);
+        uint256 _tokenBsupply = pools[_poolId].tokenBsupply.sub(_tokenBliqudity);
+        uint256 _exchangeRate = uint256(PPM).mul(_tokenAsupply).div(_tokenBsupply);
+        
+        updatePool(_poolId, _tokenAsupply, _tokenBsupply, _totalTokenBsupply, _exchangeRate);
+    }
+
     function buy(uint256 _poolId, 
                  uint256 _tokenAamount, 
                  uint256 _totalTokenBsupply
