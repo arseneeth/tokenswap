@@ -33,9 +33,17 @@ contract TokenSwap is AragonApp, BancorFormula {
         ) internal 
           returns(uint32)
     {
-        return uint32(uint256(PPM).mul(_tokenSupply).div(_exchangeRate.mul(_totalTokenSupply)));
+        return uint32(uint256(PPM).mul(_tokenSupply).div(_exchangeRate.mul(_totalTokenSupply).div(uint256(PPM))));
     }
 
+    function isBalanced(uint256 supplyA, 
+                        uint256 supplyB, 
+                        uint256 exchangeRate
+                        ) internal
+                          returns(bool)
+    {
+        return (uint256(PPM).mul(supplyA).div(supplyB) == exchangeRate);
+    }
 
     function createPool(
         // address _tokenA, 7
@@ -47,6 +55,8 @@ contract TokenSwap is AragonApp, BancorFormula {
         ) external 
           returns(bool)
     {
+        require(isBalanced(_tokenAsupply, _tokenBsupply, _exchangeRate),
+                "Pool is not balanced, please adjust tokens supply" );
         uint _id = pools.length++;
         Pool storage p = pools[_id];
 

@@ -43,31 +43,33 @@ contract('TokenSwap', ([appManager, user]) => {
   })
 
   it('should create a pool', async () => {
-    tokenAsupply = new web3.BigNumber(332 * 10 ** 18);
-    tokenBsupply = new web3.BigNumber(29 * 10 ** 18);
+    PPM = 1000000;
+
+    tokenAsupply = new web3.BigNumber(30 * 10 ** 18);
+    tokenBsupply = new web3.BigNumber(15 * 10 ** 18);
     totalTokenBsupply = new web3.BigNumber(290 * 10 ** 18);
-    exchangeRate = new web3.BigNumber(50000); 
+    exchangeRate = new web3.BigNumber(2*PPM); 
     
     await app.createPool(tokenAsupply, tokenBsupply, totalTokenBsupply, exchangeRate, { from: user })
     await console.log(await app.pools(0));
     // assert.equal(await app.value(), 10)
   })
 
-  it('should create a pool again', async () => {
-    tokenAsupply = new web3.BigNumber(228 * 10 ** 18);
-    tokenBsupply = new web3.BigNumber(290 * 10 ** 18);
-    totalTokenBsupply = new web3.BigNumber(490 * 10 ** 18);
-    exchangeRate = new web3.BigNumber(5); 
+  // it('should create a pool again', async () => {
+  //   tokenAsupply = new web3.BigNumber(228 * 10 ** 18);
+  //   tokenBsupply = new web3.BigNumber(290 * 10 ** 18);
+  //   totalTokenBsupply = new web3.BigNumber(490 * 10 ** 18);
+  //   exchangeRate = new web3.BigNumber(5); 
     
-    await app.createPool(tokenAsupply, tokenBsupply, totalTokenBsupply, exchangeRate, { from: user })
-    await console.log(await app.pools(0));
-  })
+  //   await app.createPool(tokenAsupply, tokenBsupply, totalTokenBsupply, exchangeRate, { from: user })
+  //   await console.log(await app.pools(0));
+  // })
 
   it('should create a pool and emit buy function', async () => {
-    tokenAsupply = new web3.BigNumber(100 * 10 ** 18);
-    tokenBsupply = new web3.BigNumber(900 * 10 ** 18);
+    tokenAsupply = new web3.BigNumber(200 * 10 ** 18);
+    tokenBsupply = new web3.BigNumber(100 * 10 ** 18);
     totalTokenBsupply = new web3.BigNumber(4900 * 10 ** 18);
-    exchangeRate = new web3.BigNumber(10); 
+    exchangeRate = new web3.BigNumber(2*PPM); 
     
     await app.createPool(tokenAsupply, tokenBsupply, totalTokenBsupply, exchangeRate, { from: user })
     await console.log(await app.pools(0));
@@ -81,23 +83,23 @@ contract('TokenSwap', ([appManager, user]) => {
 
   })
 
-  it('should create a pool and emit sell function', async () => {
-    tokenAsupply = new web3.BigNumber(100 * 10 ** 18);
-    tokenBsupply = new web3.BigNumber(900 * 10 ** 18);
-    totalTokenBsupply = new web3.BigNumber(4900 * 10 ** 18);
-    exchangeRate = new web3.BigNumber(10); 
+  // it('should create a pool and emit sell function', async () => {
+  //   tokenAsupply = new web3.BigNumber(100 * 10 ** 18);
+  //   tokenBsupply = new web3.BigNumber(900 * 10 ** 18);
+  //   totalTokenBsupply = new web3.BigNumber(4900 * 10 ** 18);
+  //   exchangeRate = new web3.BigNumber(10); 
     
-    await app.createPool(tokenAsupply, tokenBsupply, totalTokenBsupply, exchangeRate, { from: user })
-    await console.log(await app.pools(0));
+  //   await app.createPool(tokenAsupply, tokenBsupply, totalTokenBsupply, exchangeRate, { from: user })
+  //   await console.log(await app.pools(0));
 
-    poolId = 0;
-    tokenAamount = new web3.BigNumber(1 * 10 ** 18);
-    totalTokenBsupply = new web3.BigNumber(4900 * 10 ** 18);
+  //   poolId = 0;
+  //   tokenAamount = new web3.BigNumber(1 * 10 ** 18);
+  //   totalTokenBsupply = new web3.BigNumber(4900 * 10 ** 18);
 
-    await app.sell(poolId, tokenAamount, totalTokenBsupply, { from: user });
-    await console.log(await app.pools(0));
+  //   await app.sell(poolId, tokenAamount, totalTokenBsupply, { from: user });
+  //   await console.log(await app.pools(0));
 
-  })
+  // })
 
 
 })
