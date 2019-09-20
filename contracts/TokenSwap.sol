@@ -106,38 +106,39 @@ contract TokenSwap is AragonApp, BancorFormula {
         return true;
     }
 
-    // function sell(uint256 _poolId, 
-    //               uint256 _tokenBamount, 
-    //               uint256 _totalTokenBsupply
-    //               ) 
-    // public 
-    // returns(bool) 
-    // {
+    function sell(uint256 _poolId, 
+                  uint256 _tokenBamount, 
+                  uint256 _totalTokenBsupply
+                  ) 
+    public 
+    returns(bool) 
+    {
 
-    //     uint256 newPrice;
-    //     uint256 poolBalance     = pools[_poolId].tokenBsupply;
-    //     uint256 reserveBalance  = pools[_poolId].tokenAsupply;
-    //     uint32  _reserveRatio   = pools[_poolId].reserveRatio; //TODO: take a look at the convention
+        uint256 newPrice;
+        uint256 poolBalance     = pools[_poolId].tokenBsupply;
+        uint256 reserveBalance  = pools[_poolId].tokenAsupply;
+        uint32  _reserveRatio   = pools[_poolId].reserveRatio; //TODO: take a look at the convention
 
-    //     uint256 sendAmount = formula.calculateSaleReturn(_totalTokenBsupply, 
-    //                                                     poolBalance, 
-    //                                                     _reserveRatio, 
-    //                                                     _tokenBamount);
+        uint256 sendAmount = calculateSaleReturn(_totalTokenBsupply, 
+                                                        poolBalance, 
+                                                        _reserveRatio, 
+                                                        _tokenBamount);
         
-    //     reserveBalance       = reserveBalance.sub(sendAmount);
-    //     poolBalance          = poolBalance.add(_tokenBamount); 
-    //     newPrice             = reserveBalance.div(poolBalance);
+        reserveBalance       = reserveBalance.sub(sendAmount);
+        poolBalance          = poolBalance.add(_tokenBamount); 
+        newPrice             = uint256(PPM).mul(reserveBalance).div(poolBalance);
 
 
-    //     _reserveRatio = getReserveRatio(reserveBalance.div(poolBalance), 
-    //                                                        poolBalance, 
-    //                                                        _totalTokenBsupply);
+        _reserveRatio = getReserveRatio(newPrice, 
+                                        poolBalance, 
+                                        _totalTokenBsupply);
 
-    //     pools[_poolId].tokenAsupply = reserveBalance;
-    //     pools[_poolId].tokenBsupply = poolBalance;
-    //     pools[_poolId].reserveRatio = _reserveRatio;
+        pools[_poolId].tokenAsupply = reserveBalance;
+        pools[_poolId].tokenBsupply = poolBalance;
+        pools[_poolId].reserveRatio = _reserveRatio;
+        pools[_poolId].exchageRate = newPrice;
 
-    //     return true;
-    // }
+        return true;
+    }
 
 }
