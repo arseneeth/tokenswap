@@ -107,6 +107,9 @@ contract TokenSwap is AragonApp, BancorFormula {
         _reserveRatio = getReserveRatio(newPrice, 
                                         poolBalance, 
                                         _totalTokenBsupply);
+        
+        require(isBalanced(reserveBalance, poolBalance, newPrice),
+                "Pool is not balanced, please adjust tokens supply" );
 
         pools[_poolId].tokenAsupply = reserveBalance;
         pools[_poolId].tokenBsupply = poolBalance;
