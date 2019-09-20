@@ -6,7 +6,7 @@ import "@aragon/os/contracts/common/SafeERC20.sol";
 import "./bancor-formula/BancorFormula.sol";
 
 
-contract TokenSwap is AragonApp {
+contract TokenSwap is AragonApp, BancorFormula {
     using SafeERC20 for ERC20;    
     using SafeMath for uint256;
 
@@ -21,7 +21,7 @@ contract TokenSwap is AragonApp {
     }
     
     Pool[]         public pools;
-    IBancorFormula public formula;
+    // IBancorFormula public formula;
     ERC20          public token;
 
     uint32  public constant PPM      = 1000000;  // parts per million
@@ -33,7 +33,7 @@ contract TokenSwap is AragonApp {
         ) internal 
           returns(uint32)
     {
-        return uint32(uint256(PPM).mul(_tokenSupply.div(_exchangeRate.mul(_totalTokenSupply))));
+        return uint32(uint256(PPM).mul(_tokenSupply).div(_exchangeRate.mul(_totalTokenSupply)));
     }
 
 
@@ -72,63 +72,72 @@ contract TokenSwap is AragonApp {
         initialized();
     }
 
-    // temporary
-    // uint256 poolBalance;
-    // uint32  reserveRatio;
-
-    function buy(uint256 _poolId, uint256 _tokenAamount, uint256 _totalTokenBsupply) public returns(bool) {
-
+    function buy(uint256 _poolId, 
+                 uint256 _tokenAamount, 
+                 uint256 _totalTokenBsupply
+                 ) 
+        public 
+        returns(bool) 
+        {
+        // TODO: add require pool exists
         uint256 newPrice;
         uint256 poolBalance     = pools[_poolId].tokenBsupply;
         uint256 reserveBalance  = pools[_poolId].tokenAsupply;
         uint32  _reserveRatio   = pools[_poolId].reserveRatio; //TODO: take a look at the convention
 
-        uint256 sendAmount = formula.calculatePurchaseReturn(_totalTokenBsupply, 
-                                                               poolBalance, 
-                                                               _reserveRatio, 
-                                                               _tokenAamount);
+        uint256 sendAmount = calculatePurchaseReturn(_totalTokenBsupply, 
+                                                     poolBalance, 
+                                                     _reserveRatio, 
+                                                     _tokenAamount);
 
         poolBalance          = poolBalance.sub(sendAmount);  // send tokens to the buyer
         reserveBalance       = reserveBalance.add(_tokenAamount);
-        newPrice             = reserveBalance.div(poolBalance);
+        newPrice             = uint256(PPM).mul(reserveBalance).div(poolBalance);
 
-        _reserveRatio = getReserveRatio(reserveBalance.div(poolBalance), 
-                                                           poolBalance, 
-                                                           _totalTokenBsupply);
+        _reserveRatio = getReserveRatio(newPrice, 
+                                        poolBalance, 
+                                        _totalTokenBsupply);
 
         pools[_poolId].tokenAsupply = reserveBalance;
         pools[_poolId].tokenBsupply = poolBalance;
         pools[_poolId].reserveRatio = _reserveRatio;
+        pools[_poolId].exchageRate = newPrice;
 
         return true;
     }
 
-    function sell(uint256 _poolId, uint256 _tokenBamount, uint256 _totalTokenBsupply) public returns(bool) {
+    // function sell(uint256 _poolId, 
+    //               uint256 _tokenBamount, 
+    //               uint256 _totalTokenBsupply
+    //               ) 
+    // public 
+    // returns(bool) 
+    // {
 
-        uint256 newPrice;
-        uint256 poolBalance     = pools[_poolId].tokenBsupply;
-        uint256 reserveBalance  = pools[_poolId].tokenAsupply;
-        uint32  _reserveRatio   = pools[_poolId].reserveRatio; //TODO: take a look at the convention
+    //     uint256 newPrice;
+    //     uint256 poolBalance     = pools[_poolId].tokenBsupply;
+    //     uint256 reserveBalance  = pools[_poolId].tokenAsupply;
+    //     uint32  _reserveRatio   = pools[_poolId].reserveRatio; //TODO: take a look at the convention
 
-        uint256 sendAmount = formula.calculateSaleReturn(_totalTokenBsupply, 
-                                                        poolBalance, 
-                                                        _reserveRatio, 
-                                                        _tokenBamount);
+    //     uint256 sendAmount = formula.calculateSaleReturn(_totalTokenBsupply, 
+    //                                                     poolBalance, 
+    //                                                     _reserveRatio, 
+    //                                                     _tokenBamount);
         
-        reserveBalance       = reserveBalance.sub(sendAmount);
-        poolBalance          = poolBalance.add(_tokenBamount); 
-        newPrice             = reserveBalance.div(poolBalance);
+    //     reserveBalance       = reserveBalance.sub(sendAmount);
+    //     poolBalance          = poolBalance.add(_tokenBamount); 
+    //     newPrice             = reserveBalance.div(poolBalance);
 
 
-            _reserveRatio = getReserveRatio(reserveBalance.div(poolBalance), 
-                                                           poolBalance, 
-                                                           _totalTokenBsupply);
+    //     _reserveRatio = getReserveRatio(reserveBalance.div(poolBalance), 
+    //                                                        poolBalance, 
+    //                                                        _totalTokenBsupply);
 
-        pools[_poolId].tokenAsupply = reserveBalance;
-        pools[_poolId].tokenBsupply = poolBalance;
-        pools[_poolId].reserveRatio = _reserveRatio;
+    //     pools[_poolId].tokenAsupply = reserveBalance;
+    //     pools[_poolId].tokenBsupply = poolBalance;
+    //     pools[_poolId].reserveRatio = _reserveRatio;
 
-        return true;
-    }
+    //     return true;
+    // }
 
 }
