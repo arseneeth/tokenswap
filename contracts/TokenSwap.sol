@@ -28,6 +28,7 @@ contract TokenSwap is AragonApp {
         uint256 tokenBsupply;
         uint32  reserveRatio;
         uint256 exchageRate; // A => B
+        bool    isActive;
         // address tokenA; // Base Asset  
         // address tokenB; // Reserve Asset
     }
@@ -50,10 +51,13 @@ contract TokenSwap is AragonApp {
         uint256 tokenBsupply, 
         uint256 exchangeRate
     );
+    event PoolClosed   (
+        address indexed provider, 
+        uint256 id 
+    );
 
     /***** external function *****/
     
-
     /**
     * @notice Initialize tokenswap contract
     * @param _formula The address of the BancorFormula [computation] contract
@@ -65,6 +69,14 @@ contract TokenSwap is AragonApp {
         formula = _formula;
     }
 
+    /***** internal functions *****/
+    
+    /**
+    * @notice Calculate reserve ratio
+    * @param _exchangeRate     The price of token A in token B
+    * @param _tokenSupply      Supply of token B in the pool
+    * @param _totalTokenSupply Total token B supply(should be removed)
+    */
     function getReserveRatio(
         uint256 _exchangeRate, 
         uint256 _tokenSupply, 
@@ -75,6 +87,12 @@ contract TokenSwap is AragonApp {
         return uint32(uint256(PPM).mul(_tokenSupply).div(_exchangeRate.mul(_totalTokenSupply).div(uint256(PPM))));
     }
 
+    /**
+    * @notice Checks if the pool setup is balanced
+    * @param supplyA      The number of tokens A
+    * @param supplyB      The number of tokens B
+    * @param exchangeRate The price of token A in token B
+    */
     function isBalanced(uint256 supplyA, 
                         uint256 supplyB, 
                         uint256 exchangeRate
@@ -83,14 +101,23 @@ contract TokenSwap is AragonApp {
     {
         return (uint256(PPM).mul(supplyA).div(supplyB) == exchangeRate);
     }
+    
+    /* pool related functions */
 
+    /**
+    * @notice Creates the pool of swappable tokens 
+    * @param _tokenAsupply           Supply of tokens A in the pool
+    * @param _tokenBsupply           Supply of tokens B in the pool
+    * @param _totalTokenBsupply      Total supply of tokens B
+    * @param _exchangeRate           The price of token B in token A
+    */
     function createPool(
         // address _tokenA, 
         // address _tokenB,
         uint256    _tokenAsupply,
         uint256    _tokenBsupply,
         uint256    _totalTokenBsupply, // TODO: change to ERC20 getSUpply!
-        uint256    _exchangeRate       // the price of token A in token B
+        uint256    _exchangeRate     
         ) external 
     {
         require(isBalanced(_tokenAsupply, _tokenBsupply, _exchangeRate),
@@ -109,14 +136,22 @@ contract TokenSwap is AragonApp {
         p.tokenBsupply = _tokenBsupply;
         p.reserveRatio = _reserveRatio;
         p.exchageRate  = _exchangeRate;
+        p.isActive     = true;
     } 
 
+    /**
+    * @notice Updates the pool based on trade execution 
+    * @param _tokenAsupply           Supply of tokens A in the pool
+    * @param _tokenBsupply           Supply of tokens B in the pool
+    * @param _totalTokenBsupply      Total supply of tokens B
+    * @param _exchangeRate           The price of token B in token A
+    */
     function updatePool(
         uint256    _poolId,
         uint256    _tokenAsupply,
         uint256    _tokenBsupply,
         uint256    _totalTokenBsupply, // TODO: change to ERC20 getSUpply!
-        uint256    _exchangeRate // the price of token A in token B
+        uint256    _exchangeRate // the price of token B in token A
         ) internal 
     {
         require(isBalanced(_tokenAsupply, _tokenBsupply, _exchangeRate),
@@ -132,14 +167,25 @@ contract TokenSwap is AragonApp {
         pools[_poolId].exchageRate  = _exchangeRate;
     }
 
-	/// ACL
+    function closePool(uint256 _poolId) external {
+        require(msg.sender == pools[_poolId].provider,
+                "you are not the owner of the pool");
+        require(pools[_poolId].isActive,
+                "pool is not active");
+
+        pools[_poolId].isActive = false;
+        pools[_poolId].tokenAsupply = 0;
+        pools[_poolId].tokenBsupply = 0;
+        pools[_poolId].reserveRatio = 0;
+        pools[_poolId].exchageRate  = 0;
+    }
 
     function buy(uint256 _poolId, 
                  uint256 _tokenAamount, 
                  uint256 _totalTokenBsupply
                  ) 
-        public 
-        {
+    external 
+    {
         // TODO: add require pool exists
         uint256 newPrice;
         uint256 poolBalance       = pools[_poolId].tokenBsupply;
