@@ -5,6 +5,7 @@ const { getEventArgument } = require('@aragon/test-helpers/events')
 const { hash } = require('eth-ens-namehash')
 const deployDAO = require('./helpers/deployDAO')
 
+const Formula = artifacts.require('BancorFormula.sol')
 const TokenSwap = artifacts.require('TokenSwap.sol')
 
 const ANY_ADDRESS = '0xffffffffffffffffffffffffffffffffffffffff'
@@ -17,6 +18,7 @@ contract('TokenSwap', ([appManager, user]) => {
 
     // Deploy the app's base contract.
     const appBase = await TokenSwap.new()
+    const formula = await Formula.new()
 
     // Instantiate a proxy for the app, using the base contract as its logic implementation.
     const instanceReceipt = await dao.newAppInstance(
@@ -39,7 +41,7 @@ contract('TokenSwap', ([appManager, user]) => {
       { from: appManager }
     )
 
-    await app.initialize()
+    await app.initialize(formula.address)
   })
 
   it('should create a pool', async () => {

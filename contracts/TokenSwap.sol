@@ -1,23 +1,26 @@
 pragma solidity ^0.4.24;
 
 import "@aragon/os/contracts/apps/AragonApp.sol";
+import "@aragon/os/contracts/common/IsContract.sol";
 import "@aragon/os/contracts/lib/math/SafeMath.sol";
 import "@aragon/os/contracts/common/SafeERC20.sol";
 import "@aragon/os/contracts/lib/token/ERC20.sol";
 import "./bancor-formula/BancorFormula.sol";
 
 
-contract TokenSwap is AragonApp , BancorFormula {
+contract TokenSwap is AragonApp {
     using SafeERC20 for ERC20;    
     using SafeMath for uint256;
-
-    bytes32 public constant CREATE_POOL_ROLE  = keccak256("OPEN_BUY_ORDER_ROLE");
-    bytes32 public constant BUY_ROLE          = keccak256("OPEN_BUY_ORDER_ROLE");
-    bytes32 public constant SELL_ROLE         = keccak256("OPEN_SELL_ORDER_ROLE");
+    
+    bytes32 constant public ADMIN_ROLE = keccak256("ADMIN_ROLE"); //TODO: delete later
+    bytes32 public constant PROVIDER  = keccak256("PROVIDER");
+    bytes32 public constant BUY_ROLE  = keccak256("BUY_ROLE");
+    bytes32 public constant SELL_ROLE = keccak256("SELL_ROLE");
 
     uint32  public constant PPM = 1000000;  // parts per million
 
     string private constant ERROR_POOL_NOT_BALANCED = "MM_POOL_NOT_BALANCED";
+    string private constant ERROR_CONTRACT_IS_EOA   = "MM_CONTRACT_IS_EOA";
 
     struct Pool{
         address provider;
@@ -47,6 +50,20 @@ contract TokenSwap is AragonApp , BancorFormula {
         uint256 tokenBsupply, 
         uint256 exchangeRate
     );
+
+    /***** external function *****/
+    
+
+    /**
+    * @notice Initialize tokenswap contract
+    * @param _formula The address of the BancorFormula [computation] contract
+    */
+    function initialize(IBancorFormula _formula) external onlyInit {
+        
+        initialized();
+        require(isContract(_formula), ERROR_CONTRACT_IS_EOA);    
+        formula = _formula;
+    }
 
     function getReserveRatio(
         uint256 _exchangeRate, 
@@ -116,11 +133,6 @@ contract TokenSwap is AragonApp , BancorFormula {
     }
 
 	/// ACL
-    bytes32 constant public ADMIN_ROLE = keccak256("ADMIN_ROLE");
-
-    function initialize() public onlyInit {
-        initialized();
-    }
 
     function buy(uint256 _poolId, 
                  uint256 _tokenAamount, 
@@ -130,13 +142,13 @@ contract TokenSwap is AragonApp , BancorFormula {
         {
         // TODO: add require pool exists
         uint256 newPrice;
-        uint256 poolBalance     = pools[_poolId].tokenBsupply;
-        uint256 reserveBalance  = pools[_poolId].tokenAsupply;
-        uint32  _reserveRatio   = pools[_poolId].reserveRatio; //TODO: take a look at the convention
+        uint256 poolBalance       = pools[_poolId].tokenBsupply;
+        uint256 reserveBalance    = pools[_poolId].tokenAsupply;
+        uint32  connectorWeight   = pools[_poolId].reserveRatio; //TODO: take a look at the convention
 
-        uint256 sendAmount = calculatePurchaseReturn(_totalTokenBsupply, 
+        uint256 sendAmount = formula.calculatePurchaseReturn(_totalTokenBsupply, 
                                                      poolBalance, 
-                                                     _reserveRatio, 
+                                                     connectorWeight, 
                                                      _tokenAamount);
 
         poolBalance          = poolBalance.sub(sendAmount);  // send tokens to the buyer
@@ -154,14 +166,14 @@ contract TokenSwap is AragonApp , BancorFormula {
     {
 
         uint256 newPrice;
-        uint256 poolBalance     = pools[_poolId].tokenBsupply;
-        uint256 reserveBalance  = pools[_poolId].tokenAsupply;
-        uint32  _reserveRatio   = pools[_poolId].reserveRatio; //TODO: take a look at the convention
+        uint256 poolBalance       = pools[_poolId].tokenBsupply;
+        uint256 reserveBalance    = pools[_poolId].tokenAsupply;
+        uint32  connectorWeight   = pools[_poolId].reserveRatio; //TODO: take a look at the convention
 
-        uint256 sendAmount = calculateSaleReturn(_totalTokenBsupply, 
-                                                        poolBalance, 
-                                                        _reserveRatio, 
-                                                        _tokenBamount);
+        uint256 sendAmount  = formula.calculateSaleReturn(_totalTokenBsupply, 
+                                                  poolBalance, 
+                                                  connectorWeight, 
+                                                  _tokenBamount);
         
         reserveBalance       = reserveBalance.sub(sendAmount);
         poolBalance          = poolBalance.add(_tokenBamount); 
