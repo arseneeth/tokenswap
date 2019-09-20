@@ -29,8 +29,8 @@ contract TokenSwap is AragonApp {
         uint32  reserveRatio;
         uint256 exchageRate; // A => B
         bool    isActive;
-        // address tokenA; // Base Asset  
-        // address tokenB; // Reserve Asset
+        address tokenA; // Base Asset  
+        address tokenB; // Reserve Asset
     }
     
     IBancorFormula public formula;
@@ -112,8 +112,8 @@ contract TokenSwap is AragonApp {
     * @param _exchangeRate           The price of token B in token A
     */
     function createPool(
-        // address _tokenA, 
-        // address _tokenB,
+        address    _tokenA, 
+        address    _tokenB,
         uint256    _tokenAsupply,
         uint256    _tokenBsupply,
         uint256    _totalTokenBsupply, // TODO: change to ERC20 getSUpply!
@@ -122,6 +122,9 @@ contract TokenSwap is AragonApp {
     {
         require(isBalanced(_tokenAsupply, _tokenBsupply, _exchangeRate),
                 "Pool is not balanced, please adjust tokens supply" );
+        require(isContract(_tokenA) && isContract(_tokenA),
+                "It's not a contract");
+
         uint _id = pools.length++;
         Pool storage p = pools[_id];
 
@@ -130,13 +133,15 @@ contract TokenSwap is AragonApp {
                                                _totalTokenBsupply);
 
         p.provider     = msg.sender;
-        // p.tokenA       = _tokenA;
-        // p.tokenB       = _tokenB;
+        p.tokenA       = _tokenA;
+        p.tokenB       = _tokenB;
         p.tokenAsupply = _tokenAsupply;
         p.tokenBsupply = _tokenBsupply;
         p.reserveRatio = _reserveRatio;
         p.exchageRate  = _exchangeRate;
         p.isActive     = true;
+
+        emit PoolCreated(msg.sender, _id, _tokenAsupply, _tokenBsupply, _exchangeRate);
     } 
 
     /**
@@ -248,7 +253,6 @@ contract TokenSwap is AragonApp {
                   ) 
     public 
     {
-
         uint256 newPrice;
         uint256 poolBalance       = pools[_poolId].tokenBsupply;
         uint256 reserveBalance    = pools[_poolId].tokenAsupply;
