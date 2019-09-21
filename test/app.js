@@ -9,8 +9,13 @@ const deployDAO = require('./helpers/deployDAO')
 const Formula = artifacts.require('BancorFormula.sol')
 const TokenSwap = artifacts.require('TokenSwap.sol')
 
+
 const ANY_ADDRESS = '0xffffffffffffffffffffffffffffffffffffffff'
 const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000'
+
+const INITIAL_TOKEN_BALANCE = 10000 * Math.pow(10, 18) // 10000 DAIs or ANTs
+const PPM                   = 1000000
+
 
 contract('TokenSwap', ([appManager, user]) => {
   let app
@@ -47,24 +52,33 @@ contract('TokenSwap', ([appManager, user]) => {
   })
 
   it('should create a pool', async () => {
-    PPM = 1000000;
 
     const tokenA = await MiniMeToken.new(ZERO_ADDRESS, ZERO_ADDRESS, 0, 'Base', 18, 'BASE', true)
+
+    // await app.initializeToken(tokenA.address, { from: user })
+
+    // await console.log(await app.tokens(1));
+
     const tokenB = await MiniMeToken.new(ZERO_ADDRESS, ZERO_ADDRESS, 0, 'Sub', 18, 'SUB', true)
 
-    tokenAsupply = new web3.BigNumber(30 * 10 ** 18);
-    tokenBsupply = new web3.BigNumber(15 * 10 ** 18);
-    totalTokenBsupply = new web3.BigNumber(290 * 10 ** 18);
-    exchangeRate = new web3.BigNumber(2*PPM); 
+    await tokenA.generateTokens(user, INITIAL_TOKEN_BALANCE)
+    await tokenB.generateTokens(user, INITIAL_TOKEN_BALANCE)
+
+    let tokenAsupply = new web3.BigNumber(30 * 10 ** 18)
+    let tokenBsupply = new web3.BigNumber(15 * 10 ** 18)
+
+    let totalTokenBsupply = new web3.BigNumber(290 * 10 ** 18);
+    let exchangeRate = new web3.BigNumber(2*PPM) 
     
-    await app.createPool(tokenA.address, tokenB.address, tokenAsupply, tokenBsupply, totalTokenBsupply, exchangeRate, { from: user })
+    await app.createPool(tokenA.address, tokenB.address, tokenAsupply, tokenBsupply, exchangeRate, { from: user })
 
     await console.log(await app.pools(0));
+    await console.log(await tokenB.totalSupply())
 
     // assert.equal(await app.value(), 10)
   })
 
-  it('should create a pool and emit buy function', async () => {
+  // it('should create a pool and emit buy function', async () => {
     // tokenAsupply = new web3.BigNumber(200 * 10 ** 18);
     // tokenBsupply = new web3.BigNumber(100 * 10 ** 18);
     // totalTokenBsupply = new web3.BigNumber(4900 * 10 ** 18);
@@ -80,6 +94,6 @@ contract('TokenSwap', ([appManager, user]) => {
     // await app.buy(poolId, tokenAamount, totalTokenBsupply, { from: user });
     // // await console.log(await app.pools(0));
 
-  })
+  // })
 
 })

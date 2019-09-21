@@ -34,8 +34,10 @@ contract TokenSwap is AragonApp {
     }
     
     IBancorFormula public formula;
-    ERC20          public token;
+    ERC20[]        public tokens;
     Pool[]         public pools;
+
+    mapping (address => uint256) initializedTokens; // Reserve Asset
 
     event PoolCreated   (
         address indexed provider, 
@@ -56,6 +58,12 @@ contract TokenSwap is AragonApp {
         uint256 id 
     );
 
+    event TokenInitialized   (
+        address indexed token, 
+        uint256 id 
+    );
+
+
     /***** external function *****/
     
     /**
@@ -63,7 +71,6 @@ contract TokenSwap is AragonApp {
     * @param _formula The address of the BancorFormula [computation] contract
     */
     function initialize(IBancorFormula _formula) external onlyInit {
-        
         initialized();
         require(isContract(_formula), ERROR_CONTRACT_IS_EOA);    
         formula = _formula;
@@ -101,29 +108,52 @@ contract TokenSwap is AragonApp {
     {
         return (uint256(PPM).mul(supplyA).div(supplyB) == exchangeRate);
     }
+    /* tokens related functions */
+    function initializeToken(address tokenAddress) public returns(uint) {
+        // TODO: add checks
+
+        ERC20 _token   = ERC20(tokenAddress);
+        uint  _tokenId = tokens.length;
+
+        tokens.push(_token);
+        initializedTokens[tokenAddress] = _tokenId;               
+
+        emit TokenInitialized(tokenAddress, _tokenId);
+        return _tokenId;
+    }
+
     
     /* pool related functions */
 
     /**
     * @notice Creates the pool of swappable tokens 
-    * @param _tokenAsupply           Supply of tokens A in the pool
-    * @param _tokenBsupply           Supply of tokens B in the pool
-    * @param _totalTokenBsupply      Total supply of tokens B
-    * @param _exchangeRate           The price of token B in token A
+    * @param _tokenAaddress           Address of token A contract
+    * @param _tokenBaddress           Address of token B contract
+    * @param _tokenAsupply            Supply of tokens A in the pool
+    * @param _tokenBsupply            Supply of tokens B in the pool
+    * @param _exchangeRate            The price of token B in token A
     */
     function createPool(
-        address    _tokenA, 
-        address    _tokenB,
+        address    _tokenAaddress, 
+        address    _tokenBaddress,
         uint256    _tokenAsupply,
         uint256    _tokenBsupply,
-        uint256    _totalTokenBsupply, // TODO: change to ERC20 getSUpply!
+        // uint256    _totalTokenBsupply, // TODO: change to ERC20 getSUpply!
         uint256    _exchangeRate     
         ) external 
     {
         require(isBalanced(_tokenAsupply, _tokenBsupply, _exchangeRate),
                 "Pool is not balanced, please adjust tokens supply" );
-        require(isContract(_tokenA) && isContract(_tokenA),
+        require(isContract(_tokenAaddress) && isContract(_tokenAaddress),
                 "It's not a contract");
+
+        //initialize tokens
+        uint  _tokenAid = initializeToken(_tokenAaddress); 
+        uint  _tokenBid = initializeToken(_tokenBaddress);
+        // ERC20 _tokenA   = tokens[_tokenAid];
+        // ERC20 _tokenB   = tokens[_tokenBid];
+
+        uint256 _totalTokenBsupply = tokens[_tokenBid].totalSupply();
 
         uint _id = pools.length++;
         Pool storage p = pools[_id];
@@ -133,8 +163,8 @@ contract TokenSwap is AragonApp {
                                                _totalTokenBsupply);
 
         p.provider     = msg.sender;
-        p.tokenA       = _tokenA;
-        p.tokenB       = _tokenB;
+        p.tokenA       = _tokenAaddress;
+        p.tokenB       = _tokenBaddress;
         p.tokenAsupply = _tokenAsupply;
         p.tokenBsupply = _tokenBsupply;
         p.reserveRatio = _reserveRatio;
