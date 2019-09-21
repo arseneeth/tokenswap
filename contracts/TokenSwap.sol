@@ -10,17 +10,19 @@ import "./bancor-formula/BancorFormula.sol";
 
 contract TokenSwap is AragonApp {
     using SafeERC20 for ERC20;    
-    using SafeMath for uint256;
+    using SafeMath  for uint256;
     
     bytes32 constant public ADMIN_ROLE = keccak256("ADMIN_ROLE"); //TODO: delete later
-    bytes32 public constant PROVIDER  = keccak256("PROVIDER");
-    bytes32 public constant BUY_ROLE  = keccak256("BUY_ROLE");
-    bytes32 public constant SELL_ROLE = keccak256("SELL_ROLE");
+    bytes32 public constant PROVIDER   = keccak256("PROVIDER");
+    bytes32 public constant BUY_ROLE   = keccak256("BUY_ROLE");
+    bytes32 public constant SELL_ROLE  = keccak256("SELL_ROLE");
 
     uint32  public constant PPM = 1000000;  // parts per million
 
-    string private constant ERROR_POOL_NOT_BALANCED = "MM_POOL_NOT_BALANCED";
-    string private constant ERROR_CONTRACT_IS_EOA   = "MM_CONTRACT_IS_EOA";
+    string private constant ERROR_POOL_NOT_BALANCED         = "MM_POOL_NOT_BALANCED";
+    string private constant ERROR_POOL_NOT_ACTIVE           = "MM_POOL_NOT_ACTIVE";
+    string private constant ERROR_CONTRACT_IS_EOA           = "MM_CONTRACT_IS_EOA";
+    string private constant ERROR_SLIPPAGE_LIMIT_EXCEEDED   = "MM_SLIPPAGE_LIMIT_EXCEEDED";
 
     struct Pool{
         address provider;
@@ -28,6 +30,7 @@ contract TokenSwap is AragonApp {
         uint256 tokenBsupply;
         uint32  reserveRatio;
         uint256 exchageRate; // A => B
+        uint256 slippage;
         bool    isActive;
         address tokenA; // Base Asset  
         address tokenB; // Reserve Asset
@@ -131,6 +134,7 @@ contract TokenSwap is AragonApp {
     * @param _tokenBaddress           Address of token B contract
     * @param _tokenAsupply            Supply of tokens A in the pool
     * @param _tokenBsupply            Supply of tokens B in the pool
+    * @param _slippage                Maximum slippage
     * @param _exchangeRate            The price of token B in token A
     */
     function createPool(
@@ -138,11 +142,11 @@ contract TokenSwap is AragonApp {
         address    _tokenBaddress,
         uint256    _tokenAsupply,
         uint256    _tokenBsupply,
+        uint256    _slippage,
         uint256    _exchangeRate     
         ) external 
     {
-        require(isBalanced(_tokenAsupply, _tokenBsupply, _exchangeRate),
-                "Pool is not balanced, please adjust tokens supply" );
+        require(isBalanced(_tokenAsupply, _tokenBsupply, _exchangeRate), ERROR_POOL_NOT_BALANCED );
         require(isContract(_tokenAaddress) && isContract(_tokenAaddress),
                 "It's not a contract");
 
@@ -169,6 +173,7 @@ contract TokenSwap is AragonApp {
         p.tokenAsupply = _tokenAsupply;
         p.tokenBsupply = _tokenBsupply;
         p.reserveRatio = _reserveRatio;
+        p.slippage     = _slippage;
         p.exchageRate  = _exchangeRate;
         p.isActive     = true;
 
@@ -179,8 +184,7 @@ contract TokenSwap is AragonApp {
     function closePool(uint256 _poolId) external {
         require(msg.sender == pools[_poolId].provider,
                 "you are not the owner of the pool");
-        require(pools[_poolId].isActive,
-                "pool is not active");
+        require(pools[_poolId].isActive, ERROR_POOL_NOT_ACTIVE);
         
         //get tokens id        
         uint _tokenAid = initializedTokens[pools[_poolId].tokenA];
@@ -190,10 +194,11 @@ contract TokenSwap is AragonApp {
         tokens[_tokenAid].transfer(msg.sender, pools[_poolId].tokenAsupply);
         tokens[_tokenBid].transfer(msg.sender, pools[_poolId].tokenBsupply);
 
-        pools[_poolId].isActive = false;
+        pools[_poolId].isActive     = false;
         pools[_poolId].tokenAsupply = 0;
         pools[_poolId].tokenBsupply = 0;
         pools[_poolId].reserveRatio = 0;
+        pools[_poolId].slippage     = 0;
         pools[_poolId].exchageRate  = 0;
 
         emit PoolClosed(msg.sender, _poolId);
@@ -212,8 +217,7 @@ contract TokenSwap is AragonApp {
         uint256    _exchangeRate // the price of token B in token A
         ) internal 
     {
-        require(isBalanced(_tokenAsupply, _tokenBsupply, _exchangeRate),
-                "Pool is not balanced, please adjust tokens supply" );
+        require(isBalanced(_tokenAsupply, _tokenBsupply, _exchangeRate), ERROR_POOL_NOT_BALANCED );
 
         uint256 _tokenBid          = initializedTokens[pools[_poolId].tokenB];
         uint256 _totalTokenBsupply = tokens[_tokenBid].totalSupply();
@@ -241,8 +245,7 @@ contract TokenSwap is AragonApp {
     {
         require(msg.sender == pools[_poolId].provider,
                 "you are not the owner of the pool");
-        require(pools[_poolId].isActive,
-                "pool is not active");
+        require(pools[_poolId].isActive, ERROR_POOL_NOT_ACTIVE);
 
         //get tokens id        
         uint _tokenAid = initializedTokens[pools[_poolId].tokenA];
@@ -267,8 +270,7 @@ contract TokenSwap is AragonApp {
     {
         require(msg.sender == pools[_poolId].provider,
                 "you are not the owner of the pool");
-        require(pools[_poolId].isActive,
-                "pool is not active");
+        require(pools[_poolId].isActive, ERROR_POOL_NOT_ACTIVE);
 
         //get tokens id        
         uint _tokenAid = initializedTokens[pools[_poolId].tokenA];
@@ -291,6 +293,8 @@ contract TokenSwap is AragonApp {
         uint256 poolBalance        = pools[_poolId].tokenBsupply;
         uint256 reserveBalance     = pools[_poolId].tokenAsupply;
         uint32  connectorWeight    = pools[_poolId].reserveRatio; //TODO: take a look at the convention
+        uint256 staticPrice        = pools[_poolId].exchageRate;                
+        uint256 _slippage          = pools[_poolId].slippage;  
         uint256 _tokenAid          = initializedTokens[pools[_poolId].tokenA];
         uint256 _tokenBid          = initializedTokens[pools[_poolId].tokenB];
         uint256 _totalTokenBsupply = tokens[_tokenBid].totalSupply();
@@ -300,6 +304,9 @@ contract TokenSwap is AragonApp {
                                                      poolBalance, 
                                                      connectorWeight, 
                                                      _tokenAamount);
+
+        require (uint256(PPM).mul(_tokenAamount).add(_slippage) >= sendAmount.mul(staticPrice),
+                 ERROR_SLIPPAGE_LIMIT_EXCEEDED);
 
         poolBalance          = poolBalance.sub(sendAmount);  // send tokens to the buyer
         reserveBalance       = reserveBalance.add(_tokenAamount);
@@ -319,6 +326,8 @@ contract TokenSwap is AragonApp {
         uint256 poolBalance        = pools[_poolId].tokenBsupply;
         uint256 reserveBalance     = pools[_poolId].tokenAsupply;
         uint32  connectorWeight    = pools[_poolId].reserveRatio; //TODO: take a look at the convention
+        uint256 staticPrice        = pools[_poolId].exchageRate;                
+        uint256 _slippage          = pools[_poolId].slippage;  
         uint256 _tokenAid          = initializedTokens[pools[_poolId].tokenA];
         uint256 _tokenBid          = initializedTokens[pools[_poolId].tokenB];
         uint256 _totalTokenBsupply = tokens[_tokenBid].totalSupply();
@@ -327,6 +336,9 @@ contract TokenSwap is AragonApp {
                                                   poolBalance, 
                                                   connectorWeight, 
                                                   _tokenBamount);
+
+        require (uint256(PPM).mul(sendAmount) <= _tokenBamount.mul(staticPrice).sub(_slippage),
+                 ERROR_SLIPPAGE_LIMIT_EXCEEDED);
         
         reserveBalance       = reserveBalance.sub(sendAmount);
         poolBalance          = poolBalance.add(_tokenBamount); 

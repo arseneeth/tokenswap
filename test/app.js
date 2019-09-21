@@ -63,11 +63,12 @@ contract('TokenSwap', ([appManager, user]) => {
     let tokenBsupply = new web3.BigNumber(15 * 10 ** 18)
 
     let exchangeRate = new web3.BigNumber(2*PPM) 
+    let slippage = new web3.BigNumber(0.01*PPM);
 
     await tokenA.approve(tokenSwap.address, tokenAsupply, { from: user })
     await tokenB.approve(tokenSwap.address, tokenBsupply, { from: user })
 
-    await tokenSwap.createPool(tokenA.address, tokenB.address, tokenAsupply, tokenBsupply, exchangeRate, { from: user })
+    await tokenSwap.createPool(tokenA.address, tokenB.address, tokenAsupply, tokenBsupply, slippage, exchangeRate, { from: user })
   })
 
   it('should create a pool and emit buy function', async () => {
@@ -83,11 +84,12 @@ contract('TokenSwap', ([appManager, user]) => {
     let tokenBsupply = new web3.BigNumber(100 * 10 ** 18);
     let totalTokenBsupply = new web3.BigNumber(4900 * 10 ** 18);
     let exchangeRate = new web3.BigNumber(2*PPM); 
-  
+    let slippage = new web3.BigNumber(0.01*PPM);
+
     await tokenA.approve(tokenSwap.address, tokenAsupply, { from: user })
     await tokenB.approve(tokenSwap.address, tokenBsupply, { from: user })
 
-    await tokenSwap.createPool(tokenA.address, tokenB.address, tokenAsupply, tokenBsupply, exchangeRate, { from: user })
+    await tokenSwap.createPool(tokenA.address, tokenB.address, tokenAsupply, tokenBsupply, slippage, exchangeRate, { from: user })
 
     poolId = 0;
     tokenAamount = new web3.BigNumber(1 * 10 ** 18);
@@ -109,11 +111,12 @@ contract('TokenSwap', ([appManager, user]) => {
     let tokenBsupply = new web3.BigNumber(100 * 10 ** 18);
     let totalTokenBsupply = new web3.BigNumber(4900 * 10 ** 18);
     let exchangeRate = new web3.BigNumber(2*PPM); 
-  
+    let slippage = new web3.BigNumber(0.01*PPM);
+
     await tokenA.approve(tokenSwap.address, tokenAsupply, { from: user })
     await tokenB.approve(tokenSwap.address, tokenBsupply, { from: user })
 
-    await tokenSwap.createPool(tokenA.address, tokenB.address, tokenAsupply, tokenBsupply, exchangeRate, { from: user })
+    await tokenSwap.createPool(tokenA.address, tokenB.address, tokenAsupply, tokenBsupply, slippage, exchangeRate, { from: user })
 
     poolId = 0;
     tokenAamount = new web3.BigNumber(1 * 10 ** 18);
