@@ -46,7 +46,7 @@ contract TokenSwap is AragonApp {
         uint256 tokenBsupply, 
         uint256 exchangeRate
     );
-    event PoolUpdated   (
+    event PoolDataUpdated   (
         address indexed reciever, 
         uint256 id, 
         uint256 tokenAsupply, 
@@ -138,7 +138,6 @@ contract TokenSwap is AragonApp {
         address    _tokenBaddress,
         uint256    _tokenAsupply,
         uint256    _tokenBsupply,
-        // uint256    _totalTokenBsupply, // TODO: change to ERC20 getSUpply!
         uint256    _exchangeRate     
         ) external 
     {
@@ -150,8 +149,10 @@ contract TokenSwap is AragonApp {
         //initialize tokens
         uint  _tokenAid = initializeToken(_tokenAaddress); 
         uint  _tokenBid = initializeToken(_tokenBaddress);
-        // ERC20 _tokenA   = tokens[_tokenAid];
-        // ERC20 _tokenB   = tokens[_tokenBid];
+        
+        //transfer tokens
+        tokens[_tokenAid].transferFrom(msg.sender, address(this), _tokenAsupply);       
+        tokens[_tokenBid].transferFrom(msg.sender, address(this), _tokenBsupply);       
 
         uint256 _totalTokenBsupply = tokens[_tokenBid].totalSupply();
 
@@ -174,23 +175,49 @@ contract TokenSwap is AragonApp {
         emit PoolCreated(msg.sender, _id, _tokenAsupply, _tokenBsupply, _exchangeRate);
     } 
 
+
+    function closePool(uint256 _poolId) external {
+        require(msg.sender == pools[_poolId].provider,
+                "you are not the owner of the pool");
+        require(pools[_poolId].isActive,
+                "pool is not active");
+        
+        //get tokens id        
+        uint _tokenAid = initializedTokens[pools[_poolId].tokenA];
+        uint _tokenBid = initializedTokens[pools[_poolId].tokenB];
+
+        //transfer tokens
+        tokens[_tokenAid].transfer(msg.sender, pools[_poolId].tokenAsupply);
+        tokens[_tokenBid].transfer(msg.sender, pools[_poolId].tokenBsupply);
+
+        pools[_poolId].isActive = false;
+        pools[_poolId].tokenAsupply = 0;
+        pools[_poolId].tokenBsupply = 0;
+        pools[_poolId].reserveRatio = 0;
+        pools[_poolId].exchageRate  = 0;
+
+        emit PoolClosed(msg.sender, _poolId);
+    }
+
     /**
     * @notice Updates the pool based on trade execution 
     * @param _tokenAsupply           Supply of tokens A in the pool
     * @param _tokenBsupply           Supply of tokens B in the pool
-    * @param _totalTokenBsupply      Total supply of tokens B
     * @param _exchangeRate           The price of token B in token A
     */
-    function updatePool(
+    function updatePoolData(
         uint256    _poolId,
         uint256    _tokenAsupply,
         uint256    _tokenBsupply,
-        uint256    _totalTokenBsupply, // TODO: change to ERC20 getSUpply!
         uint256    _exchangeRate // the price of token B in token A
         ) internal 
     {
         require(isBalanced(_tokenAsupply, _tokenBsupply, _exchangeRate),
                 "Pool is not balanced, please adjust tokens supply" );
+
+        uint256 _tokenBid          = initializedTokens[pools[_poolId].tokenB];
+        uint256 _totalTokenBsupply = tokens[_tokenBid].totalSupply();
+
 
         uint32 _reserveRatio = getReserveRatio(_exchangeRate, 
                                         _tokenBsupply, 
@@ -200,20 +227,10 @@ contract TokenSwap is AragonApp {
         pools[_poolId].tokenBsupply = _tokenBsupply;
         pools[_poolId].reserveRatio = _reserveRatio;
         pools[_poolId].exchageRate  = _exchangeRate;
+
+        emit PoolDataUpdated(msg.sender, _poolId, _tokenAsupply, _tokenBsupply, _exchangeRate);
     }
 
-    function closePool(uint256 _poolId) external {
-        require(msg.sender == pools[_poolId].provider,
-                "you are not the owner of the pool");
-        require(pools[_poolId].isActive,
-                "pool is not active");
-
-        pools[_poolId].isActive = false;
-        pools[_poolId].tokenAsupply = 0;
-        pools[_poolId].tokenBsupply = 0;
-        pools[_poolId].reserveRatio = 0;
-        pools[_poolId].exchageRate  = 0;
-    }
 
     function addLiquidity(
         uint256 _poolId, 
@@ -226,44 +243,58 @@ contract TokenSwap is AragonApp {
                 "you are not the owner of the pool");
         require(pools[_poolId].isActive,
                 "pool is not active");
+
+        //get tokens id        
+        uint _tokenAid = initializedTokens[pools[_poolId].tokenA];
+        uint _tokenBid = initializedTokens[pools[_poolId].tokenB];
+
+        //transfer tokens
+        tokens[_tokenAid].transferFrom(msg.sender, address(this), _tokenAliquidity);       
+        tokens[_tokenBid].transferFrom(msg.sender, address(this), _tokenBliqudity);       
         
         uint256 _tokenAsupply = pools[_poolId].tokenAsupply.add(_tokenAliquidity);
         uint256 _tokenBsupply = pools[_poolId].tokenBsupply.add(_tokenBliqudity);
         uint256 _exchangeRate = uint256(PPM).mul(_tokenAsupply).div(_tokenBsupply);
         
-        updatePool(_poolId, _tokenAsupply, _tokenBsupply, _totalTokenBsupply, _exchangeRate);
+        updatePoolData(_poolId, _tokenAsupply, _tokenBsupply, _exchangeRate);
     }
 
     function removeLiquidity(
         uint256 _poolId, 
         uint256 _tokenAliquidity, 
-        uint256 _tokenBliqudity,
-        uint256 _totalTokenBsupply
-        ) external 
+        uint256 _tokenBliqudity        
+    ) external 
     {
         require(msg.sender == pools[_poolId].provider,
                 "you are not the owner of the pool");
         require(pools[_poolId].isActive,
                 "pool is not active");
+
+        //get tokens id        
+        uint _tokenAid = initializedTokens[pools[_poolId].tokenA];
+        uint _tokenBid = initializedTokens[pools[_poolId].tokenB];
+
+        //transfer tokens
+        tokens[_tokenAid].transfer(msg.sender, _tokenAliquidity);
+        tokens[_tokenBid].transfer(msg.sender, _tokenBliqudity);
         
         uint256 _tokenAsupply = pools[_poolId].tokenAsupply.sub(_tokenAliquidity);
         uint256 _tokenBsupply = pools[_poolId].tokenBsupply.sub(_tokenBliqudity);
         uint256 _exchangeRate = uint256(PPM).mul(_tokenAsupply).div(_tokenBsupply);
         
-        updatePool(_poolId, _tokenAsupply, _tokenBsupply, _totalTokenBsupply, _exchangeRate);
+        updatePoolData(_poolId, _tokenAsupply, _tokenBsupply, _exchangeRate);
     }
 
-    function buy(uint256 _poolId, 
-                 uint256 _tokenAamount, 
-                 uint256 _totalTokenBsupply
-                 ) 
-    external 
-    {
+    function buy(uint256 _poolId, uint256 _tokenAamount) external {
         // TODO: add require pool exists
         uint256 newPrice;
-        uint256 poolBalance       = pools[_poolId].tokenBsupply;
-        uint256 reserveBalance    = pools[_poolId].tokenAsupply;
-        uint32  connectorWeight   = pools[_poolId].reserveRatio; //TODO: take a look at the convention
+        uint256 poolBalance        = pools[_poolId].tokenBsupply;
+        uint256 reserveBalance     = pools[_poolId].tokenAsupply;
+        uint32  connectorWeight    = pools[_poolId].reserveRatio; //TODO: take a look at the convention
+        uint256 _tokenAid          = initializedTokens[pools[_poolId].tokenA];
+        uint256 _tokenBid          = initializedTokens[pools[_poolId].tokenB];
+        uint256 _totalTokenBsupply = tokens[_tokenBid].totalSupply();
+
 
         uint256 sendAmount = formula.calculatePurchaseReturn(_totalTokenBsupply, 
                                                      poolBalance, 
@@ -274,19 +305,23 @@ contract TokenSwap is AragonApp {
         reserveBalance       = reserveBalance.add(_tokenAamount);
         newPrice             = uint256(PPM).mul(reserveBalance).div(poolBalance);
 
-        updatePool(_poolId, reserveBalance, poolBalance, _totalTokenBsupply, newPrice);
+ 
+        //transfer tokens
+        tokens[_tokenAid].transferFrom(msg.sender, address(this), _tokenAamount);       
+        tokens[_tokenBid].transfer(msg.sender, sendAmount);       
+
+        //TODO: add emit tokenBought
+        updatePoolData(_poolId, reserveBalance, poolBalance, newPrice);
     }
 
-    function sell(uint256 _poolId, 
-                  uint256 _tokenBamount, 
-                  uint256 _totalTokenBsupply
-                  ) 
-    public 
-    {
+    function sell(uint256 _poolId, uint256 _tokenBamount) public {
         uint256 newPrice;
-        uint256 poolBalance       = pools[_poolId].tokenBsupply;
-        uint256 reserveBalance    = pools[_poolId].tokenAsupply;
-        uint32  connectorWeight   = pools[_poolId].reserveRatio; //TODO: take a look at the convention
+        uint256 poolBalance        = pools[_poolId].tokenBsupply;
+        uint256 reserveBalance     = pools[_poolId].tokenAsupply;
+        uint32  connectorWeight    = pools[_poolId].reserveRatio; //TODO: take a look at the convention
+        uint256 _tokenAid          = initializedTokens[pools[_poolId].tokenA];
+        uint256 _tokenBid          = initializedTokens[pools[_poolId].tokenB];
+        uint256 _totalTokenBsupply = tokens[_tokenBid].totalSupply();
 
         uint256 sendAmount  = formula.calculateSaleReturn(_totalTokenBsupply, 
                                                   poolBalance, 
@@ -297,7 +332,12 @@ contract TokenSwap is AragonApp {
         poolBalance          = poolBalance.add(_tokenBamount); 
         newPrice             = uint256(PPM).mul(reserveBalance).div(poolBalance);
 
-        updatePool(_poolId, reserveBalance, poolBalance, _totalTokenBsupply, newPrice);
+        //transfer tokens
+        tokens[_tokenAid].transfer(msg.sender, sendAmount);       
+        tokens[_tokenBid].transferFrom(msg.sender, address(this), _tokenBamount);       
+
+
+        updatePoolData(_poolId, reserveBalance, poolBalance, newPrice);
     }
 
 }

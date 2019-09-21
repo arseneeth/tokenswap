@@ -18,7 +18,7 @@ const PPM                   = 1000000
 
 
 contract('TokenSwap', ([appManager, user]) => {
-  let app
+  let tokenSwap
 
   beforeEach('deploy dao and app', async () => {
     const { dao, acl } = await deployDAO(appManager)
@@ -35,30 +35,25 @@ contract('TokenSwap', ([appManager, user]) => {
       false, // setDefault - Whether the app proxy is the default proxy.
       { from: appManager }
     )
-    app = TokenSwap.at(
+    tokenSwap = TokenSwap.at(
       getEventArgument(instanceReceipt, 'NewAppProxy', 'proxy')
     )
 
     // Set up the app's permissions.
     await acl.createPermission(
       ANY_ADDRESS, // entity (who?) - The entity or address that will have the permission.
-      app.address, // app (where?) - The app that holds the role involved in this permission.
-      await app.ADMIN_ROLE(), // role (what?) - The particular role that the entity is being assigned to in this permission.
+      tokenSwap.address, // app (where?) - The app that holds the role involved in this permission.
+      await tokenSwap.ADMIN_ROLE(), // role (what?) - The particular role that the entity is being assigned to in this permission.
       appManager, // manager - Can grant/revoke further permissions for this role.
       { from: appManager }
     )
 
-    await app.initialize(formula.address)
+    await tokenSwap.initialize(formula.address)
   })
 
   it('should create a pool', async () => {
 
     const tokenA = await MiniMeToken.new(ZERO_ADDRESS, ZERO_ADDRESS, 0, 'Base', 18, 'BASE', true)
-
-    // await app.initializeToken(tokenA.address, { from: user })
-
-    // await console.log(await app.tokens(1));
-
     const tokenB = await MiniMeToken.new(ZERO_ADDRESS, ZERO_ADDRESS, 0, 'Sub', 18, 'SUB', true)
 
     await tokenA.generateTokens(user, INITIAL_TOKEN_BALANCE)
@@ -67,15 +62,16 @@ contract('TokenSwap', ([appManager, user]) => {
     let tokenAsupply = new web3.BigNumber(30 * 10 ** 18)
     let tokenBsupply = new web3.BigNumber(15 * 10 ** 18)
 
-    let totalTokenBsupply = new web3.BigNumber(290 * 10 ** 18);
     let exchangeRate = new web3.BigNumber(2*PPM) 
-    
-    await app.createPool(tokenA.address, tokenB.address, tokenAsupply, tokenBsupply, exchangeRate, { from: user })
 
-    await console.log(await app.pools(0));
-    await console.log(await tokenB.totalSupply())
+    await tokenA.approve(tokenSwap.address, tokenAsupply, { from: user })
+    await tokenB.approve(tokenSwap.address, tokenBsupply, { from: user })
 
-    // assert.equal(await app.value(), 10)
+    await tokenSwap.createPool(tokenA.address, tokenB.address, tokenAsupply, tokenBsupply, exchangeRate, { from: user })
+
+    // assert.equal(await marketMaker.isOpen(), true)
+
+    await console.log(await tokenSwap.pools(0));
   })
 
   // it('should create a pool and emit buy function', async () => {
