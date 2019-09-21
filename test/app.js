@@ -68,28 +68,59 @@ contract('TokenSwap', ([appManager, user]) => {
     await tokenB.approve(tokenSwap.address, tokenBsupply, { from: user })
 
     await tokenSwap.createPool(tokenA.address, tokenB.address, tokenAsupply, tokenBsupply, exchangeRate, { from: user })
-
-    // assert.equal(await marketMaker.isOpen(), true)
-
-    await console.log(await tokenSwap.pools(0));
   })
 
-  // it('should create a pool and emit buy function', async () => {
-    // tokenAsupply = new web3.BigNumber(200 * 10 ** 18);
-    // tokenBsupply = new web3.BigNumber(100 * 10 ** 18);
-    // totalTokenBsupply = new web3.BigNumber(4900 * 10 ** 18);
-    // exchangeRate = new web3.BigNumber(2*PPM); 
-    
-    // await app.createPool(tokenAsupply, tokenBsupply, totalTokenBsupply, exchangeRate, { from: user })
-    // // await console.log(await app.pools(0));
+  it('should create a pool and emit buy function', async () => {
 
-    // poolId = 0;
-    // tokenAamount = new web3.BigNumber(1 * 10 ** 18);
-    // totalTokenBsupply = new web3.BigNumber(4900 * 10 ** 18);
+    const tokenA = await MiniMeToken.new(ZERO_ADDRESS, ZERO_ADDRESS, 0, 'Base', 18, 'BASE', true)
+    const tokenB = await MiniMeToken.new(ZERO_ADDRESS, ZERO_ADDRESS, 0, 'Sub', 18, 'SUB', true)
 
-    // await app.buy(poolId, tokenAamount, totalTokenBsupply, { from: user });
-    // // await console.log(await app.pools(0));
+    await tokenA.generateTokens(user, INITIAL_TOKEN_BALANCE)
+    await tokenB.generateTokens(user, INITIAL_TOKEN_BALANCE)
 
-  // })
+
+    let tokenAsupply = new web3.BigNumber(200 * 10 ** 18);
+    let tokenBsupply = new web3.BigNumber(100 * 10 ** 18);
+    let totalTokenBsupply = new web3.BigNumber(4900 * 10 ** 18);
+    let exchangeRate = new web3.BigNumber(2*PPM); 
+  
+    await tokenA.approve(tokenSwap.address, tokenAsupply, { from: user })
+    await tokenB.approve(tokenSwap.address, tokenBsupply, { from: user })
+
+    await tokenSwap.createPool(tokenA.address, tokenB.address, tokenAsupply, tokenBsupply, exchangeRate, { from: user })
+
+    poolId = 0;
+    tokenAamount = new web3.BigNumber(1 * 10 ** 18);
+    totalTokenBsupply = new web3.BigNumber(4900 * 10 ** 18);
+
+    await tokenSwap.buy(poolId, tokenAamount, { from: user });
+  })
+
+  it('should create a pool and emit sell function', async () => {
+
+    const tokenA = await MiniMeToken.new(ZERO_ADDRESS, ZERO_ADDRESS, 0, 'Base', 18, 'BASE', true)
+    const tokenB = await MiniMeToken.new(ZERO_ADDRESS, ZERO_ADDRESS, 0, 'Sub', 18, 'SUB', true)
+
+    await tokenA.generateTokens(user, INITIAL_TOKEN_BALANCE)
+    await tokenB.generateTokens(user, INITIAL_TOKEN_BALANCE)
+
+
+    let tokenAsupply = new web3.BigNumber(200 * 10 ** 18);
+    let tokenBsupply = new web3.BigNumber(100 * 10 ** 18);
+    let totalTokenBsupply = new web3.BigNumber(4900 * 10 ** 18);
+    let exchangeRate = new web3.BigNumber(2*PPM); 
+  
+    await tokenA.approve(tokenSwap.address, tokenAsupply, { from: user })
+    await tokenB.approve(tokenSwap.address, tokenBsupply, { from: user })
+
+    await tokenSwap.createPool(tokenA.address, tokenB.address, tokenAsupply, tokenBsupply, exchangeRate, { from: user })
+
+    poolId = 0;
+    tokenAamount = new web3.BigNumber(1 * 10 ** 18);
+    totalTokenBsupply = new web3.BigNumber(4900 * 10 ** 18);
+
+    await tokenSwap.sell(poolId, tokenAamount, { from: user });
+  })
+
 
 })
