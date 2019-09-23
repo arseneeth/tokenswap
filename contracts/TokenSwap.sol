@@ -12,7 +12,6 @@ contract TokenSwap is AragonApp {
     using SafeERC20 for ERC20;    
     using SafeMath  for uint256;
     
-    // bytes32 constant public ADMIN_ROLE = keccak256("ADMIN_ROLE"); //TODO: delete later
     bytes32 public constant PROVIDER   = keccak256("PROVIDER");
     bytes32 public constant BUYER      = keccak256("BUYER");
     bytes32 public constant SELLER     = keccak256("SELLER");
@@ -25,7 +24,6 @@ contract TokenSwap is AragonApp {
     string private constant ERROR_NOT_PROVIDER                       = "MM_NOT_PROVIDER";
     string private constant ERROR_SLIPPAGE_LIMIT_EXCEEDED            = "MM_SLIPPAGE_LIMIT_EXCEEDED";
     string private constant ERROR_POOL_EXISTS                        = "MM_POOL_EXISTS";
-    string private constant ERROR_POOL_DOESNT_EXIST                  = "MM_POOL_DOESNT_EXIST";    
     string private constant ERROR_INSUFFICIENT_BALANCE               = "MM_INSUFFICIENT_BALANCE";
 
     struct Pool{
@@ -72,6 +70,18 @@ contract TokenSwap is AragonApp {
         uint256 id 
     );
 
+    event TokenBought   (
+        address indexed buyer, 
+        uint256 poolid,
+        uint256 amount 
+    );
+
+    event TokenSold   (
+        address indexed buyer, 
+        uint256 poolid,
+        uint256 amount 
+    );
+
 
     /***** external function *****/
     
@@ -85,74 +95,6 @@ contract TokenSwap is AragonApp {
         formula = _formula;
     }
 
-    /***** internal functions *****/
-    
-    /**
-    * @notice Calculate reserve ratio
-    * @param _exchangeRate     The price of token A in token B
-    * @param _tokenSupply      Supply of token B in the pool
-    * @param _totalTokenSupply Total token B supply(should be removed)
-    */
-    function getReserveRatio(
-        uint256 _exchangeRate, 
-        uint256 _tokenSupply, 
-        uint256 _totalTokenSupply
-        ) internal
-          pure 
-          returns(uint32)
-    {
-        return uint32(uint256(PPM).mul(_tokenSupply).div(_exchangeRate.mul(_totalTokenSupply).div(uint256(PPM))));
-    }
-
-    /**
-    * @notice Checks if the pool setup is balanced
-    * @param supplyA      The number of tokens A
-    * @param supplyB      The number of tokens B
-    * @param exchangeRate The price of token A in token B
-    */
-    function isBalanced(
-        uint256 supplyA, 
-        uint256 supplyB, 
-        uint256 exchangeRate
-        ) 
-        internal
-        pure
-        returns(bool)
-    {
-        return (uint256(PPM).mul(supplyA).div(supplyB) == exchangeRate);
-    }
-
-    /* tokens related functions */
-
-    function initializeToken(address tokenAddress) internal returns(uint) {
-        if(tokensExist[tokenAddress] == true){
-            return initializedTokens[tokenAddress];
-        } else {
-            ERC20 _token   = ERC20(tokenAddress);
-            uint  _tokenId = tokens.length;
-
-            tokens.push(_token);
-            initializedTokens[tokenAddress] = _tokenId;               
-            tokensExist[tokenAddress] = true;               
-
-            emit TokenInitialized(tokenAddress, _tokenId);
-            return _tokenId;            
-        }
-    }
-
-    function sufficientBalance(
-        uint256 _tokenId, 
-        uint256 _sendAmount,
-        address _sender
-        ) 
-    internal
-    view
-    returns(bool) 
-    {
-        uint256 _balance = tokens[_tokenId].balanceOf(_sender);
-        return _balance >= _sendAmount;
-    }
-    
     /* pool related functions */
 
     /**
@@ -172,63 +114,260 @@ contract TokenSwap is AragonApp {
         uint256    _tokenBsupply,
         uint256    _slippage,
         uint256    _exchangeRate     
-        ) external 
-          auth(PROVIDER)
+    ) 
+        external 
+        auth(PROVIDER)
     {
-        require(isBalanced(_tokenAsupply, _tokenBsupply, _exchangeRate),  
+        require(_isBalanced(_tokenAsupply, _tokenBsupply, _exchangeRate),  
                 ERROR_POOL_NOT_BALANCED );
         require(isContract(_tokenAaddress) && isContract(_tokenAaddress), 
                 ERROR_CONTRACT_IS_EOA);
         require(!poolProviders[msg.sender][keccak256(abi.encodePacked(_tokenAaddress, _tokenBaddress))], 
                 ERROR_POOL_EXISTS);
 
-        //initialize tokens
-        uint  _tokenAid = initializeToken(_tokenAaddress); 
-        uint  _tokenBid = initializeToken(_tokenBaddress);
-
-        require(sufficientBalance(_tokenAid, _tokenAsupply, msg.sender) && sufficientBalance(_tokenBid, _tokenBsupply, msg.sender), 
-                ERROR_INSUFFICIENT_BALANCE);
-
-        poolProviders[msg.sender][keccak256(abi.encodePacked(_tokenAaddress, _tokenBaddress))] = true;
-
-        //transfer tokens
-        tokens[_tokenAid].transferFrom(msg.sender, address(this), _tokenAsupply);       
-        tokens[_tokenBid].transferFrom(msg.sender, address(this), _tokenBsupply);       
-
-        uint256 _totalTokenBsupply = tokens[_tokenBid].totalSupply();
-
-        uint _id = pools.length++;
-        Pool storage p = pools[_id];
-
-        uint32 _reserveRatio = getReserveRatio(_exchangeRate, 
-                                               _tokenBsupply, 
-                                               _totalTokenBsupply);
-
-        p.provider     = msg.sender;
-        p.tokenA       = _tokenAaddress;
-        p.tokenB       = _tokenBaddress;
-        p.tokenAsupply = _tokenAsupply;
-        p.tokenBsupply = _tokenBsupply;
-        p.reserveRatio = _reserveRatio;
-        p.slippage     = _slippage;
-        p.exchageRate  = _exchangeRate;
-        p.isActive     = true;
-
-        emit PoolCreated(msg.sender, _id, _tokenAsupply, _tokenBsupply, _exchangeRate);
+        _createPool(_tokenAaddress, _tokenBaddress, _tokenAsupply, _tokenBsupply, _slippage, _exchangeRate);
     } 
 
+    /**
+    * @notice Closes the pool, returns all balances to the liquidity provider 
+    * @param _poolId Id of the pool needed to be closed
+    */
 
     function closePool(uint256 _poolId) external auth(PROVIDER) {
         require(msg.sender == pools[_poolId].provider, ERROR_NOT_PROVIDER);
         require(pools[_poolId].isActive, ERROR_POOL_NOT_ACTIVE);
         
+        _closePool(_poolId);        
+    }
+
+    /**
+    * @notice Adds liquidity to the pool
+    * @param _tokenAliquidity number of token A to be added to the pool 
+    * @param _tokenBliquidity number of token B to be added to the pool
+    */
+
+    function addLiquidity(
+        uint256 _poolId, 
+        uint256 _tokenAliquidity, 
+        uint256 _tokenBliquidity
+    ) 
+        external 
+        auth(PROVIDER)    
+    {
+        require(msg.sender == pools[_poolId].provider, ERROR_NOT_PROVIDER);
+        require(pools[_poolId].isActive, ERROR_POOL_NOT_ACTIVE);
+
         //get tokens id        
-        uint _tokenAid = initializedTokens[pools[_poolId].tokenA];
-        uint _tokenBid = initializedTokens[pools[_poolId].tokenB];
+        uint tokenAid = initializedTokens[pools[_poolId].tokenA];
+        uint tokenBid = initializedTokens[pools[_poolId].tokenB];
+
+        require(_sufficientBalance(tokenAid, _tokenAliquidity, msg.sender) && _sufficientBalance(tokenBid, _tokenBliquidity, msg.sender), 
+                ERROR_INSUFFICIENT_BALANCE);
+
+        _addLiquidity(_poolId, tokenAid, tokenBid, _tokenAliquidity, _tokenBliquidity);
+    }
+
+    /**
+    * @notice Removes liquidity from the pool, returns tokens to the liquidity provider
+    * @param _tokenAliquidity number of token A to be returned to the liquidity provider 
+    * @param _tokenBliquidity number of token B to be returned to the liquidity provider
+    */
+    function removeLiquidity(
+        uint256 _poolId, 
+        uint256 _tokenAliquidity, 
+        uint256 _tokenBliquidity        
+    ) 
+        external 
+        auth(PROVIDER)    
+    {
+        require(msg.sender == pools[_poolId].provider, ERROR_NOT_PROVIDER);
+        require(pools[_poolId].isActive, ERROR_POOL_NOT_ACTIVE);
+        require(_tokenAliquidity < pools[_poolId].tokenAsupply && _tokenBliquidity < pools[_poolId].tokenBsupply,
+                ERROR_INSUFFICIENT_BALANCE);
+        
+        _removeLiquidity(_poolId, _tokenAliquidity, _tokenBliquidity);
+    }
+
+    /**
+    * @notice Buy tokens B from the liquidity pool
+    * @param _poolId id of the pool 
+    * @param _tokenAamount the price in tokens B which is going to be payed for tokens B
+    */
+    function buy(uint256 _poolId, uint256 _tokenAamount) external auth(BUYER) {
+        require(pools[_poolId].isActive, ERROR_POOL_NOT_ACTIVE);
+  
+        uint256 tokenAid          = initializedTokens[pools[_poolId].tokenA];
+        uint256 tokenBid          = initializedTokens[pools[_poolId].tokenB];
+        uint256 totalTokenBsupply = tokens[tokenBid].totalSupply();
+
+        require(_sufficientBalance(tokenAid, _tokenAamount, msg.sender), 
+                ERROR_INSUFFICIENT_BALANCE);
+
+        _buy(_poolId,
+             tokenAid,
+             tokenBid, 
+             _tokenAamount, 
+             totalTokenBsupply 
+             );
+    }
+
+    /**
+    * @notice Sell tokens B to the liquidity pool
+    * @param _poolId id of the pool 
+    * @param _tokenBamount the amount of tokens B which is going to be echanged for tokens A
+    */
+    function sell(uint256 _poolId, uint256 _tokenBamount) public auth(SELLER) {
+        
+        uint256 tokenAid          = initializedTokens[pools[_poolId].tokenA];
+        uint256 tokenBid          = initializedTokens[pools[_poolId].tokenB];
+        uint256 totalTokenBsupply = tokens[tokenBid].totalSupply();
+
+        // require(poolProviders[pools[_poolId].provider][keccak256(abi.encodePacked(pools[_poolId].tokenA, pools[_poolId].tokenB))], 
+        //         ERROR_POOL_DOESNT_EXIST);
+        require(_sufficientBalance(tokenBid, _tokenBamount, msg.sender), 
+                ERROR_INSUFFICIENT_BALANCE);
+
+        _sell(_poolId,
+             tokenAid,
+             tokenBid, 
+             _tokenBamount, 
+             totalTokenBsupply);
+    }
+
+    /***** external function *****/
+    
+    /**
+    * @notice Calculate reserve ratio
+    * @param _exchangeRate     The price of token A in token B
+    * @param _tokenSupply      Supply of token B in the pool
+    * @param _totalTokenSupply Total token B supply(should be removed)
+    */
+    function _getReserveRatio(
+        uint256 _exchangeRate, 
+        uint256 _tokenSupply, 
+        uint256 _totalTokenSupply
+    )   
+        internal
+        pure 
+        returns(uint32)
+    {
+        return uint32(uint256(PPM).mul(_tokenSupply).div(_exchangeRate.mul(_totalTokenSupply).div(uint256(PPM))));
+    }
+
+    /**
+    * @notice Checks if the pool setup is balanced
+    * @param _supplyA      The number of tokens A
+    * @param _supplyB      The number of tokens B
+    * @param _exchangeRate The price of token A in token B
+    */
+    function _isBalanced(
+        uint256 _supplyA, 
+        uint256 _supplyB, 
+        uint256 _exchangeRate
+    ) 
+        internal
+        pure
+        returns(bool)
+    {
+        return (uint256(PPM).mul(_supplyA).div(_supplyB) == _exchangeRate);
+    }
+
+    /* tokens related functions */
+
+    /**
+    * @notice Initializes new token in the system
+    * @param _tokenAddress address of a token
+    */
+
+    function _initializeToken(address _tokenAddress) internal returns(uint) {
+        if(tokensExist[_tokenAddress] == true){
+            return initializedTokens[_tokenAddress];
+        } else {
+            ERC20 token   = ERC20(_tokenAddress);
+            uint  tokenId = tokens.length;
+
+            tokens.push(token);
+            initializedTokens[_tokenAddress] = tokenId;               
+            tokensExist[_tokenAddress] = true;               
+
+            emit TokenInitialized(_tokenAddress, tokenId);
+            return tokenId;            
+        }
+    }
+
+    /**
+    * @notice Checks token balance of an account
+    * @param _tokenId token id in the system
+    * @param _sendAmount amount of tokens willing to be sent
+    * @param _sender account of a sender
+    */
+    function _sufficientBalance(
+        uint256 _tokenId, 
+        uint256 _sendAmount,
+        address _sender
+    ) 
+        internal
+        view
+        returns(bool) 
+    {
+        uint256 balance = tokens[_tokenId].balanceOf(_sender);
+        return balance >= _sendAmount;
+    }
+
+    /* state modifiying functions */
+    
+    function _createPool(
+        address    _tokenAaddress, 
+        address    _tokenBaddress,
+        uint256    _tokenAsupply,
+        uint256    _tokenBsupply,
+        uint256    _slippage,
+        uint256    _exchangeRate     
+    )
+        internal
+    {
+        //initialize tokens
+        uint  tokenAid = _initializeToken(_tokenAaddress); 
+        uint  tokenBid = _initializeToken(_tokenBaddress);
+
+        require(_sufficientBalance(tokenAid, _tokenAsupply, msg.sender) && _sufficientBalance(tokenBid, _tokenBsupply, msg.sender), 
+                ERROR_INSUFFICIENT_BALANCE);
+
+        poolProviders[msg.sender][keccak256(abi.encodePacked(_tokenAaddress, _tokenBaddress))] = true;
 
         //transfer tokens
-        tokens[_tokenAid].transfer(msg.sender, pools[_poolId].tokenAsupply);
-        tokens[_tokenBid].transfer(msg.sender, pools[_poolId].tokenBsupply);
+        tokens[tokenAid].transferFrom(msg.sender, address(this), _tokenAsupply);       
+        tokens[tokenBid].transferFrom(msg.sender, address(this), _tokenBsupply);       
+
+        uint256 totalTokenBsupply = tokens[tokenBid].totalSupply();
+
+        uint _id = pools.length++;
+        Pool storage p = pools[_id];
+
+        uint32 reserveRatio = _getReserveRatio(_exchangeRate, 
+                                               _tokenBsupply, 
+                                               totalTokenBsupply);
+        p.provider     = msg.sender;
+        p.tokenA       = _tokenAaddress;
+        p.tokenB       = _tokenBaddress;
+        p.tokenAsupply = _tokenAsupply;
+        p.tokenBsupply = _tokenBsupply;
+        p.slippage     = _slippage;
+        p.exchageRate  = _exchangeRate;
+        p.isActive     = true;
+        p.reserveRatio = reserveRatio;
+
+        emit PoolCreated(msg.sender, _id, _tokenAsupply, _tokenBsupply, _exchangeRate);
+    }
+
+    function _closePool(uint256 _poolId) internal {
+        //get tokens id        
+        uint tokenAid = initializedTokens[pools[_poolId].tokenA];
+        uint tokenBid = initializedTokens[pools[_poolId].tokenB];
+
+        //transfer tokens
+        tokens[tokenAid].transfer(msg.sender, pools[_poolId].tokenAsupply);
+        tokens[tokenBid].transfer(msg.sender, pools[_poolId].tokenBsupply);
 
         pools[_poolId].isActive     = false;
         pools[_poolId].tokenAsupply = 0;
@@ -240,7 +379,8 @@ contract TokenSwap is AragonApp {
         poolProviders[msg.sender][keccak256(abi.encodePacked(pools[_poolId].tokenA, pools[_poolId].tokenB))] = false;
 
         emit PoolClosed(msg.sender, _poolId);
-    }
+
+    } 
 
     /**
     * @notice Updates the pool based on trade execution 
@@ -248,111 +388,85 @@ contract TokenSwap is AragonApp {
     * @param _tokenBsupply           Supply of tokens B in the pool
     * @param _exchangeRate           The price of token B in token A
     */
-    function updatePoolData(
+    function _updatePoolData(
         uint256    _poolId,
         uint256    _tokenAsupply,
         uint256    _tokenBsupply,
         uint256    _exchangeRate // the price of token B in token A
-        ) internal 
+    ) 
+        internal 
     {
-        require(isBalanced(_tokenAsupply, _tokenBsupply, _exchangeRate), ERROR_POOL_NOT_BALANCED );
+        require(_isBalanced(_tokenAsupply, _tokenBsupply, _exchangeRate), ERROR_POOL_NOT_BALANCED );
+ 
+        uint256 tokenBid          = initializedTokens[pools[_poolId].tokenB];
+        uint256 totalTokenBsupply = tokens[tokenBid].totalSupply();
 
-        uint256 _tokenBid          = initializedTokens[pools[_poolId].tokenB];
-        uint256 _totalTokenBsupply = tokens[_tokenBid].totalSupply();
-
-
-        uint32 _reserveRatio = getReserveRatio(_exchangeRate, 
-                                        _tokenBsupply, 
-                                        _totalTokenBsupply);
+        uint32  reserveRatio = _getReserveRatio(_exchangeRate, 
+                                              _tokenBsupply, 
+                                              totalTokenBsupply);
 
         pools[_poolId].tokenAsupply = _tokenAsupply;
         pools[_poolId].tokenBsupply = _tokenBsupply;
-        pools[_poolId].reserveRatio = _reserveRatio;
         pools[_poolId].exchageRate  = _exchangeRate;
+        pools[_poolId].reserveRatio = reserveRatio;
 
         emit PoolDataUpdated(msg.sender, _poolId, _tokenAsupply, _tokenBsupply, _exchangeRate);
     }
 
 
-    function addLiquidity(
+    function _addLiquidity(
         uint256 _poolId, 
+        uint256 _tokenAid, 
+        uint256 _tokenBid,
         uint256 _tokenAliquidity, 
-        uint256 _tokenBliqudity
-        ) external 
-          auth(PROVIDER)    
+        uint256 _tokenBliquidity
+    ) 
+        internal 
     {
-        require(msg.sender == pools[_poolId].provider, ERROR_NOT_PROVIDER);
-        require(pools[_poolId].isActive, ERROR_POOL_NOT_ACTIVE);
-
-        //get tokens id        
-        uint _tokenAid = initializedTokens[pools[_poolId].tokenA];
-        uint _tokenBid = initializedTokens[pools[_poolId].tokenB];
-
-        require(sufficientBalance(_tokenAid, _tokenAliquidity, msg.sender) && sufficientBalance(_tokenBid, _tokenBliqudity, msg.sender), 
-                ERROR_INSUFFICIENT_BALANCE);
-
         //transfer tokens
         tokens[_tokenAid].transferFrom(msg.sender, address(this), _tokenAliquidity);       
-        tokens[_tokenBid].transferFrom(msg.sender, address(this), _tokenBliqudity);       
+        tokens[_tokenBid].transferFrom(msg.sender, address(this), _tokenBliquidity);       
         
-        uint256 _tokenAsupply = pools[_poolId].tokenAsupply.add(_tokenAliquidity);
-        uint256 _tokenBsupply = pools[_poolId].tokenBsupply.add(_tokenBliqudity);
-        uint256 _exchangeRate = uint256(PPM).mul(_tokenAsupply).div(_tokenBsupply);
+        uint256 tokenAsupply = pools[_poolId].tokenAsupply.add(_tokenAliquidity);
+        uint256 tokenBsupply = pools[_poolId].tokenBsupply.add(_tokenBliquidity);
+        uint256 exchangeRate = uint256(PPM).mul(tokenAsupply).div(tokenBsupply);
         
-        updatePoolData(_poolId, _tokenAsupply, _tokenBsupply, _exchangeRate);
+        _updatePoolData(_poolId, tokenAsupply, tokenBsupply, exchangeRate);
+
     }
 
-    function removeLiquidity(
+    function _removeLiquidity(
         uint256 _poolId, 
         uint256 _tokenAliquidity, 
         uint256 _tokenBliquidity        
-    ) external 
-      auth(PROVIDER)    
+    )
+        internal
     {
-        require(msg.sender == pools[_poolId].provider, ERROR_NOT_PROVIDER);
-        require(pools[_poolId].isActive, ERROR_POOL_NOT_ACTIVE);
-        require(_tokenAliquidity < pools[_poolId].tokenAsupply && _tokenBliquidity < pools[_poolId].tokenBsupply,
-                ERROR_INSUFFICIENT_BALANCE);
-
         //get tokens id        
-        uint _tokenAid = initializedTokens[pools[_poolId].tokenA];
-        uint _tokenBid = initializedTokens[pools[_poolId].tokenB];
+        uint tokenAid = initializedTokens[pools[_poolId].tokenA];
+        uint tokenBid = initializedTokens[pools[_poolId].tokenB];
 
         //transfer tokens
-        tokens[_tokenAid].transfer(msg.sender, _tokenAliquidity);
-        tokens[_tokenBid].transfer(msg.sender, _tokenBliquidity);
+        tokens[tokenAid].transfer(msg.sender, _tokenAliquidity);
+        tokens[tokenBid].transfer(msg.sender, _tokenBliquidity);
         
-        uint256 _tokenAsupply = pools[_poolId].tokenAsupply.sub(_tokenAliquidity);
-        uint256 _tokenBsupply = pools[_poolId].tokenBsupply.sub(_tokenBliquidity);
-        uint256 _exchangeRate = uint256(PPM).mul(_tokenAsupply).div(_tokenBsupply);
+        uint256 tokenAsupply = pools[_poolId].tokenAsupply.sub(_tokenAliquidity);
+        uint256 tokenBsupply = pools[_poolId].tokenBsupply.sub(_tokenBliquidity);
+        uint256 exchangeRate = uint256(PPM).mul(tokenAsupply).div(tokenBsupply);
         
-        updatePoolData(_poolId, _tokenAsupply, _tokenBsupply, _exchangeRate);
+        _updatePoolData(_poolId, tokenAsupply, tokenBsupply, exchangeRate);
+
     }
 
-    function buy(uint256 _poolId, uint256 _tokenAamount) external auth(BUYER) {
-        require(pools[_poolId].isActive, ERROR_POOL_NOT_ACTIVE);
-  
-        uint256 tokenAid          = initializedTokens[pools[_poolId].tokenA];
-        uint256 tokenBid          = initializedTokens[pools[_poolId].tokenB];
-        uint256 totalTokenBsupply = tokens[tokenBid].totalSupply();
-
-        require(sufficientBalance(tokenAid, _tokenAamount, msg.sender), 
-                ERROR_INSUFFICIENT_BALANCE);
-
-        _buy(_poolId,
-             tokenAid,
-             tokenBid, 
-             _tokenAamount, 
-             totalTokenBsupply 
-             );
-    }
-
-    function _buy(uint   _poolId,
-                  uint   _tokenAid,
-                  uint   _tokenBid, 
-                  uint   _tokenAamount,
-                  uint   _totalTokenBsupply                  
-                  ) internal {
+    function _buy(
+        uint   _poolId,
+        uint   _tokenAid,
+        uint   _tokenBid, 
+        uint   _tokenAamount,
+        uint   _totalTokenBsupply                  
+    ) 
+        internal 
+    {
 
         uint256 _poolBalance        = pools[_poolId].tokenBsupply;
         uint256 _reserveBalance     = pools[_poolId].tokenAsupply;
@@ -377,35 +491,20 @@ contract TokenSwap is AragonApp {
         tokens[_tokenAid].transferFrom(msg.sender, address(this), _tokenAamount);       
         tokens[_tokenBid].transfer(msg.sender, sendAmount);       
 
-        //TODO: add emit tokenBought
-        updatePoolData(_poolId, reserveBalance, poolBalance, newPrice);
+        emit TokenBought(msg.sender, _poolId, sendAmount);
+        _updatePoolData(_poolId, reserveBalance, poolBalance, newPrice);
     }
 
-    function sell(uint256 _poolId, uint256 _tokenBamount) public auth(SELLER) {
-        
-        uint256 tokenAid          = initializedTokens[pools[_poolId].tokenA];
-        uint256 tokenBid          = initializedTokens[pools[_poolId].tokenB];
-        uint256 totalTokenBsupply = tokens[tokenBid].totalSupply();
-
-        // require(poolProviders[pools[_poolId].provider][keccak256(abi.encodePacked(pools[_poolId].tokenA, pools[_poolId].tokenB))], 
-        //         ERROR_POOL_DOESNT_EXIST);
-        require(sufficientBalance(tokenBid, _tokenBamount, msg.sender), 
-                ERROR_INSUFFICIENT_BALANCE);
-
-        _sell(_poolId,
-             tokenAid,
-             tokenBid, 
-             _tokenBamount, 
-             totalTokenBsupply);
-    }
 
     function _sell(
-                  uint   _poolId,
-                  uint   _tokenAid,
-                  uint   _tokenBid, 
-                  uint   _tokenBamount,
-                  uint   _totalTokenBsupply                  
-                  ) internal{
+        uint   _poolId,
+        uint   _tokenAid,
+        uint   _tokenBid, 
+        uint   _tokenBamount,
+        uint   _totalTokenBsupply                  
+    ) 
+        internal
+    {
         require(pools[_poolId].isActive, ERROR_POOL_NOT_ACTIVE);
 
         uint256 _poolBalance        = pools[_poolId].tokenBsupply;
@@ -430,8 +529,8 @@ contract TokenSwap is AragonApp {
         tokens[_tokenAid].transfer(msg.sender, sendAmount);       
         tokens[_tokenBid].transferFrom(msg.sender, address(this), _tokenBamount);       
 
-        //TODO: add emit tokenSold
-        updatePoolData(_poolId, reserveBalance, poolBalance, newPrice);
+        emit TokenSold(msg.sender, _poolId, sendAmount);
+        _updatePoolData(_poolId, reserveBalance, poolBalance, newPrice);
 
     }
 }
