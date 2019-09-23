@@ -22,6 +22,7 @@ contract TokenSwap is AragonApp {
     string private constant ERROR_POOL_NOT_BALANCED         = "MM_POOL_NOT_BALANCED";
     string private constant ERROR_POOL_NOT_ACTIVE           = "MM_POOL_NOT_ACTIVE";
     string private constant ERROR_CONTRACT_IS_EOA           = "MM_CONTRACT_IS_EOA";
+    string private constant ERROR_NOT_PROVIDER              = "MM_NOT_PROVIDER";
     string private constant ERROR_SLIPPAGE_LIMIT_EXCEEDED   = "MM_SLIPPAGE_LIMIT_EXCEEDED";
 
     struct Pool{
@@ -29,7 +30,7 @@ contract TokenSwap is AragonApp {
         uint256 tokenAsupply;
         uint256 tokenBsupply;
         uint32  reserveRatio;
-        uint256 exchageRate; // A => B
+        uint256 exchageRate;
         uint256 slippage;
         bool    isActive;
         address tokenA; // Base Asset  
@@ -40,9 +41,9 @@ contract TokenSwap is AragonApp {
     ERC20[]        public tokens;
     Pool[]         public pools;
 
-    mapping (address => uint256) initializedTokens; // Reserve Asset
+    mapping (address => uint256) initializedTokens; 
 
-    event PoolCreated   (
+    event PoolCreated       (
         address indexed provider, 
         uint256 id, 
         uint256 tokenAsupply, 
@@ -56,7 +57,7 @@ contract TokenSwap is AragonApp {
         uint256 tokenBsupply, 
         uint256 exchangeRate
     );
-    event PoolClosed   (
+    event PoolClosed        (
         address indexed provider, 
         uint256 id 
     );
@@ -145,10 +146,10 @@ contract TokenSwap is AragonApp {
         uint256    _slippage,
         uint256    _exchangeRate     
         ) external 
+          auth(PROVIDER)
     {
-        require(isBalanced(_tokenAsupply, _tokenBsupply, _exchangeRate), ERROR_POOL_NOT_BALANCED );
-        require(isContract(_tokenAaddress) && isContract(_tokenAaddress),
-                "It's not a contract");
+        require(isBalanced(_tokenAsupply, _tokenBsupply, _exchangeRate),  ERROR_POOL_NOT_BALANCED );
+        require(isContract(_tokenAaddress) && isContract(_tokenAaddress), ERROR_CONTRACT_IS_EOA);
 
         //initialize tokens
         uint  _tokenAid = initializeToken(_tokenAaddress); 
@@ -181,9 +182,8 @@ contract TokenSwap is AragonApp {
     } 
 
 
-    function closePool(uint256 _poolId) external {
-        require(msg.sender == pools[_poolId].provider,
-                "you are not the owner of the pool");
+    function closePool(uint256 _poolId) external auth(PROVIDER) {
+        require(msg.sender == pools[_poolId].provider, ERROR_NOT_PROVIDER);
         require(pools[_poolId].isActive, ERROR_POOL_NOT_ACTIVE);
         
         //get tokens id        
@@ -242,9 +242,9 @@ contract TokenSwap is AragonApp {
         uint256 _tokenBliqudity,
         uint256 _totalTokenBsupply
         ) external 
+          auth(PROVIDER)    
     {
-        require(msg.sender == pools[_poolId].provider,
-                "you are not the owner of the pool");
+        require(msg.sender == pools[_poolId].provider, ERROR_NOT_PROVIDER);
         require(pools[_poolId].isActive, ERROR_POOL_NOT_ACTIVE);
 
         //get tokens id        
@@ -267,9 +267,9 @@ contract TokenSwap is AragonApp {
         uint256 _tokenAliquidity, 
         uint256 _tokenBliqudity        
     ) external 
+      auth(PROVIDER)    
     {
-        require(msg.sender == pools[_poolId].provider,
-                "you are not the owner of the pool");
+        require(msg.sender == pools[_poolId].provider, ERROR_NOT_PROVIDER);
         require(pools[_poolId].isActive, ERROR_POOL_NOT_ACTIVE);
 
         //get tokens id        
@@ -348,7 +348,7 @@ contract TokenSwap is AragonApp {
         tokens[_tokenAid].transfer(msg.sender, sendAmount);       
         tokens[_tokenBid].transferFrom(msg.sender, address(this), _tokenBamount);       
 
-
+        //TODO: add emit tokenSold
         updatePoolData(_poolId, reserveBalance, poolBalance, newPrice);
     }
 
