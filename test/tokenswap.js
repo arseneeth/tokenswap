@@ -13,7 +13,7 @@ const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000'
 const INITIAL_TOKEN_BALANCE = 10000 * Math.pow(10, 18) // 10000 DAIs or ANTs
 const PPM = 1000000
 const PCT_BASE = 1000000000000000000
-let tokenA, tokenB, tokenAsupply, tokenBsupply, exchangeRate, slippage
+let tokenA, tokenB, tokenAsupply, tokenBsupply, exchangeRate, slippage, tokenAliquidity, tokenBliquidity, tokenAamount
 
 contract('TokenSwap', accounts => {
   let dao, formula, tokenSwap
@@ -21,8 +21,8 @@ contract('TokenSwap', accounts => {
 
   const rootUser = accounts[0]
   const provider = accounts[1]
-  // const authorized2 = accounts[2]
-  // const unauthorized = accounts[3]
+  const buyer = accounts[2]
+  const seller = accounts[3]
 
   const initialize = async open => {
     const { dao, acl } = await deployDAO(rootUser)
@@ -49,11 +49,33 @@ contract('TokenSwap', accounts => {
       rootUser, 
       { from: rootUser }
     )
+
+    await acl.createPermission(
+      buyer, 
+      tokenSwap.address, 
+      await tokenSwap.BUYER(), 
+      rootUser, 
+      { from: rootUser }
+    )
+
+    await acl.createPermission(
+      seller, 
+      tokenSwap.address, 
+      await tokenSwap.SELLER(), 
+      rootUser, 
+      { from: rootUser }
+    )
+
     tokenA = await MiniMeToken.new(ZERO_ADDRESS, ZERO_ADDRESS, 0, 'Base', 18, 'BASE', true)
     tokenB = await MiniMeToken.new(ZERO_ADDRESS, ZERO_ADDRESS, 0, 'Sub', 18, 'SUB', true)
 
     await tokenA.generateTokens(provider, INITIAL_TOKEN_BALANCE)
+    await tokenA.generateTokens(buyer, INITIAL_TOKEN_BALANCE)
     await tokenB.generateTokens(provider, INITIAL_TOKEN_BALANCE)
+    await tokenB.generateTokens(seller, INITIAL_TOKEN_BALANCE)
+
+    await tokenA.approve(tokenSwap.address, INITIAL_TOKEN_BALANCE, { from: provider })
+    await tokenB.approve(tokenSwap.address, INITIAL_TOKEN_BALANCE, { from: provider })
 
     await tokenSwap.initialize(formula.address)
   }	  	
@@ -71,9 +93,6 @@ contract('TokenSwap', accounts => {
 
     exchangeRate = new web3.BigNumber(2*PPM) 
     slippage = new web3.BigNumber(0.01*PPM);
-
-    await tokenA.approve(tokenSwap.address, tokenAsupply, { from: provider })
-    await tokenB.approve(tokenSwap.address, tokenBsupply, { from: provider })
 
     let receipt = await tokenSwap.createPool(tokenA.address, tokenB.address, tokenAsupply, tokenBsupply, slippage, exchangeRate, { from: provider })
 
@@ -142,6 +161,102 @@ contract('TokenSwap', accounts => {
 
 	assertEvent(receipt, 'PoolCreated')
 
+    })
+ it('it should add liquidity to the pool', async () => {
+
+    tokenAliquidity = new web3.BigNumber(4 * 10 ** 18)
+    tokenBliqudity = new web3.BigNumber(2 * 10 ** 18)
+
+	await tokenSwap.createPool(tokenA.address, tokenB.address, tokenAsupply, tokenBsupply, slippage, exchangeRate, { from: provider })
+
+	let receipt = await tokenSwap.addLiquidity(0, tokenAliquidity, tokenBliqudity, { from: provider })
+
+    let balanceA = await tokenA.balanceOf(tokenSwap.address);
+    let balanceB = await tokenB.balanceOf(tokenSwap.address);
+
+    let pool =  await tokenSwap.pools(0)
+
+    assert.equal(await balanceA.toNumber(), pool[1])
+    assert.equal(await balanceB.toNumber(), pool[2])
+	assertEvent(receipt, 'PoolDataUpdated')
+
+    })
+
+ it('it should not allow to add liquidity twice due to issuficient balance', async () => {
+
+    tokenAsupply = new web3.BigNumber(15 * 10 ** 18)
+    tokenBsupply = new web3.BigNumber(15 * 10 ** 18)
+
+    tokenAliquidity = new web3.BigNumber(6000 * 10 ** 18)
+    tokenBliqudity = new web3.BigNumber(6000 * 10 ** 18)
+    exchangeRate = new web3.BigNumber(1*PPM) 
+
+	await tokenSwap.createPool(tokenA.address, tokenB.address, tokenAsupply, tokenBsupply, slippage, exchangeRate, { from: provider })
+	await tokenSwap.addLiquidity(0, tokenAliquidity, tokenBliqudity, { from: provider })
+
+    await assertRevert(() => tokenSwap.addLiquidity(0, tokenAliquidity, tokenBliqudity, { from: provider }))    
+
+    })
+
+ it('it should not allow to add liquidity because pool is closed', async () => {
+
+ 	tokenAsupply = new web3.BigNumber(10000 * 10 ** 18)
+    tokenBsupply = new web3.BigNumber(10000 * 10 ** 18)
+
+
+	await tokenSwap.createPool(tokenA.address, tokenB.address, tokenAsupply, tokenBsupply, slippage, exchangeRate, { from: provider })
+    await tokenSwap.closePool(0, { from: provider })
+
+    await assertRevert(() => tokenSwap.addLiquidity(0, tokenAliquidity, tokenBliqudity, { from: provider }))    
+
+    })
+
+ it('it should remove liquidity from the pool', async () => {
+
+	await tokenSwap.createPool(tokenA.address, tokenB.address, tokenAsupply, tokenBsupply, slippage, exchangeRate, { from: provider })
+
+    await tokenSwap.removeLiquidity(0, tokenAliquidity, tokenBliqudity, { from: provider })    
+
+    })
+
+ it('it should not remove liquidity from the pool due to issuficient pool balance', async () => {
+
+    let tokenC = await MiniMeToken.new(ZERO_ADDRESS, ZERO_ADDRESS, 0, 'C', 18, 'BASE', true)
+    let tokenD = await MiniMeToken.new(ZERO_ADDRESS, ZERO_ADDRESS, 0, 'D', 18, 'D', true)
+
+    await tokenC.generateTokens(provider, INITIAL_TOKEN_BALANCE)
+    await tokenD.generateTokens(provider, INITIAL_TOKEN_BALANCE)
+
+    await tokenC.approve(tokenSwap.address, INITIAL_TOKEN_BALANCE, { from: provider })
+    await tokenD.approve(tokenSwap.address, INITIAL_TOKEN_BALANCE, { from: provider })
+
+	await tokenSwap.createPool(tokenA.address, tokenB.address, tokenAsupply, tokenBsupply, slippage, exchangeRate, { from: provider })
+	await tokenSwap.createPool(tokenC.address, tokenD.address, tokenAsupply, tokenBsupply, slippage, exchangeRate, { from: provider })
+
+    await tokenSwap.removeLiquidity(0, tokenAliquidity, tokenBliqudity, { from: provider })    
+
+    await assertRevert(() => tokenSwap.removeLiquidity(0, tokenAliquidity, tokenBliqudity, { from: provider }))    
+
+    })
+
+ it('it should buy tokens from the pool', async () => {
+
+    tokenAsupply = new web3.BigNumber(30 * 10 ** 18)
+    tokenBsupply = new web3.BigNumber(15 * 10 ** 18)
+
+    exchangeRate = new web3.BigNumber(2*PPM) 
+
+    tokenAamount = new web3.BigNumber(5 * 10 ** 18);
+
+	await tokenSwap.createPool(tokenA.address, tokenB.address, tokenAsupply, tokenBsupply, slippage, exchangeRate, { from: provider })
+    await tokenSwap.buy(0, tokenAamount, { from: buyer })    
+    })
+
+ it('it should sell tokens from the pool', async () => {
+
+
+	await tokenSwap.createPool(tokenA.address, tokenB.address, tokenAsupply, tokenBsupply, slippage, exchangeRate, { from: provider })
+    await tokenSwap.sell(0, tokenAamount, { from: seller })    
     })
 
 
