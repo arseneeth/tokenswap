@@ -24,6 +24,7 @@ contract TokenSwap is AragonApp {
     string private constant ERROR_CONTRACT_IS_EOA           = "MM_CONTRACT_IS_EOA";
     string private constant ERROR_NOT_PROVIDER              = "MM_NOT_PROVIDER";
     string private constant ERROR_SLIPPAGE_LIMIT_EXCEEDED   = "MM_SLIPPAGE_LIMIT_EXCEEDED";
+    string private constant ERROR_POOL_EXISTS               = "MM_POOL_EXISTS";
 
     struct Pool{
         address provider;
@@ -42,6 +43,8 @@ contract TokenSwap is AragonApp {
     Pool[]         public pools;
 
     mapping (address => uint256) initializedTokens; 
+    mapping (address => bool) tokensExist; 
+    mapping (address => mapping (bytes32 => bool)) poolProviders; 
 
     event PoolCreated       (
         address indexed provider, 
@@ -76,7 +79,7 @@ contract TokenSwap is AragonApp {
     */
     function initialize(IBancorFormula _formula) external onlyInit {
         initialized();
-        require(isContract(_formula), ERROR_CONTRACT_IS_EOA);    
+        require(isContract(_formula), ERROR_CONTRACT_IS_EOA);            
         formula = _formula;
     }
 
@@ -112,18 +115,23 @@ contract TokenSwap is AragonApp {
     {
         return (uint256(PPM).mul(supplyA).div(supplyB) == exchangeRate);
     }
+
     /* tokens related functions */
-    function initializeToken(address tokenAddress) public returns(uint) {
+    function initializeToken(address tokenAddress) internal returns(uint) {
         // TODO: add checks
+        if(tokensExist[tokenAddress] == true){
+            return initializedTokens[tokenAddress];
+        } else {
+            ERC20 _token   = ERC20(tokenAddress);
+            uint  _tokenId = tokens.length;
 
-        ERC20 _token   = ERC20(tokenAddress);
-        uint  _tokenId = tokens.length;
+            tokens.push(_token);
+            initializedTokens[tokenAddress] = _tokenId;               
+            tokensExist[tokenAddress] = true;               
 
-        tokens.push(_token);
-        initializedTokens[tokenAddress] = _tokenId;               
-
-        emit TokenInitialized(tokenAddress, _tokenId);
-        return _tokenId;
+            emit TokenInitialized(tokenAddress, _tokenId);
+            return _tokenId;            
+        }
     }
 
     
@@ -150,11 +158,14 @@ contract TokenSwap is AragonApp {
     {
         require(isBalanced(_tokenAsupply, _tokenBsupply, _exchangeRate),  ERROR_POOL_NOT_BALANCED );
         require(isContract(_tokenAaddress) && isContract(_tokenAaddress), ERROR_CONTRACT_IS_EOA);
+        require(!poolProviders[msg.sender][keccak256(_tokenAaddress, _tokenBaddress)], ERROR_POOL_EXISTS);
 
         //initialize tokens
         uint  _tokenAid = initializeToken(_tokenAaddress); 
         uint  _tokenBid = initializeToken(_tokenBaddress);
-        
+
+        poolProviders[msg.sender][keccak256(_tokenAaddress, _tokenBaddress)] = true;
+
         //transfer tokens
         tokens[_tokenAid].transferFrom(msg.sender, address(this), _tokenAsupply);       
         tokens[_tokenBid].transferFrom(msg.sender, address(this), _tokenBsupply);       
@@ -200,6 +211,8 @@ contract TokenSwap is AragonApp {
         pools[_poolId].reserveRatio = 0;
         pools[_poolId].slippage     = 0;
         pools[_poolId].exchageRate  = 0;
+
+        poolProviders[msg.sender][keccak256(pools[_poolId].tokenA, pools[_poolId].tokenB)] = false;
 
         emit PoolClosed(msg.sender, _poolId);
     }

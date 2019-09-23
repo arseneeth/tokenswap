@@ -2,7 +2,9 @@ const MiniMeToken = artifacts.require('MiniMeToken')
 const Formula = artifacts.require('BancorFormula.sol')
 const TokenSwap = artifacts.require('TokenSwap.sol')
 const deployDAO = require('./helpers/deployDAO')
+const assertEvent = require('@aragon/test-helpers/assertEvent')
 
+const { assertRevert } = require('@aragon/test-helpers/assertThrow')
 const { getEventArgument } = require('@aragon/test-helpers/events')
 const { hash } = require('eth-ens-namehash')
 
@@ -11,8 +13,7 @@ const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000'
 const INITIAL_TOKEN_BALANCE = 10000 * Math.pow(10, 18) // 10000 DAIs or ANTs
 const PPM = 1000000
 const PCT_BASE = 1000000000000000000
-let tokenA
-let tokenB
+let tokenA, tokenB, tokenAsupply, tokenBsupply, exchangeRate, slippage
 
 contract('TokenSwap', accounts => {
   let dao, formula, tokenSwap
@@ -65,22 +66,83 @@ contract('TokenSwap', accounts => {
 
   it('should create a pool', async () => {
 
-    let tokenAsupply = new web3.BigNumber(30 * 10 ** 18)
-    let tokenBsupply = new web3.BigNumber(15 * 10 ** 18)
+    tokenAsupply = new web3.BigNumber(30 * 10 ** 18)
+    tokenBsupply = new web3.BigNumber(15 * 10 ** 18)
 
-    let exchangeRate = new web3.BigNumber(2*PPM) 
-    let slippage = new web3.BigNumber(0.01*PPM);
+    exchangeRate = new web3.BigNumber(2*PPM) 
+    slippage = new web3.BigNumber(0.01*PPM);
 
     await tokenA.approve(tokenSwap.address, tokenAsupply, { from: provider })
     await tokenB.approve(tokenSwap.address, tokenBsupply, { from: provider })
 
-    await tokenSwap.createPool(tokenA.address, tokenB.address, tokenAsupply, tokenBsupply, slippage, exchangeRate, { from: provider })
-    
-    let poolId = 0;
-    let pool = await tokenSwap.pools(poolId)
-    await console.log("Token supply is :", pool[1])
+    let receipt = await tokenSwap.createPool(tokenA.address, tokenB.address, tokenAsupply, tokenBsupply, slippage, exchangeRate, { from: provider })
 
-  })
+    let balanceA = await tokenA.balanceOf(tokenSwap.address);
+    let balanceB = await tokenB.balanceOf(tokenSwap.address);
+
+    assert.equal(await balanceA.toNumber(), tokenAsupply)
+    assert.equal(await balanceB.toNumber(), tokenBsupply)
+	assertEvent(receipt, 'PoolCreated')
+   	})
+
+  it('it should not allow to create the same pool twice', async () => {
+    tokenSwap.createPool(tokenA.address, tokenB.address, tokenAsupply, tokenBsupply, slippage, exchangeRate, { from: provider })
+    await assertRevert(() => tokenSwap.createPool(tokenA.address, tokenB.address, tokenAsupply, tokenBsupply, slippage, exchangeRate, { from: provider }))    
+    })
+
+  it('it should not allow to create an imbalanced pool', async () => {
+    tokenAsupply = new web3.BigNumber(30 * 10 ** 18)
+    tokenBsupply = new web3.BigNumber(2 * 10 ** 18)
+
+    await assertRevert(() => tokenSwap.createPool(tokenA.address, tokenB.address, tokenAsupply, tokenBsupply, slippage, exchangeRate, { from: provider }))    
+    })
+
+ it('it should close the pool', async () => {
+    tokenAsupply = new web3.BigNumber(30 * 10 ** 18)
+    tokenBsupply = new web3.BigNumber(15 * 10 ** 18)
+	
+    let receipt = await tokenSwap.createPool(tokenA.address, tokenB.address, tokenAsupply, tokenBsupply, slippage, exchangeRate, { from: provider })
+
+	assertEvent(receipt, 'PoolCreated')
+    
+    receipt = await tokenSwap.closePool(0, { from: provider })
+
+	assertEvent(receipt, 'PoolClosed')
+
+
+    let balanceA = await tokenA.balanceOf(tokenSwap.address);
+    let balanceB = await tokenB.balanceOf(tokenSwap.address);
+
+    assert.equal(await balanceA.toNumber(), 0)
+    assert.equal(await balanceB.toNumber(), 0)
+    })
+
+ it('it should not allow to close the pool twice', async () => {
+    tokenAsupply = new web3.BigNumber(30 * 10 ** 18)
+    tokenBsupply = new web3.BigNumber(15 * 10 ** 18)
+	
+    let receipt = await tokenSwap.createPool(tokenA.address, tokenB.address, tokenAsupply, tokenBsupply, slippage, exchangeRate, { from: provider })
+
+	assertEvent(receipt, 'PoolCreated')
+    
+    receipt = await tokenSwap.closePool(0, { from: provider })
+    await assertRevert(() => tokenSwap.closePool(0, { from: provider }))    
+    })
+ it('it should recreate the pool', async () => {
+    tokenAsupply = new web3.BigNumber(30 * 10 ** 18)
+    tokenBsupply = new web3.BigNumber(15 * 10 ** 18)
+	
+    let receipt = await tokenSwap.createPool(tokenA.address, tokenB.address, tokenAsupply, tokenBsupply, slippage, exchangeRate, { from: provider })
+
+	assertEvent(receipt, 'PoolCreated')
+   
+    await tokenSwap.closePool(0, { from: provider })
+
+	receipt = await tokenSwap.createPool(tokenA.address, tokenB.address, tokenAsupply, tokenBsupply, slippage, exchangeRate, { from: provider })
+
+	assertEvent(receipt, 'PoolCreated')
+
+    })
 
 
 })
