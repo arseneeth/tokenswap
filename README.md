@@ -1,4 +1,4 @@
-# Aragon TokenSwan
+# Aragon TokenSwap
 
 Aragon TokenSwap is a PoC implementation of an on-chain ERC20 token exchange based on Bancor inmplementation of Bonding Curve formula. It could potentially be used by DAOs in order to simplify the process of DAO's native token swapping to DAI, ANT, etc.
 
