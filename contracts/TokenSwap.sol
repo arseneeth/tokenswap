@@ -551,6 +551,5 @@ contract TokenSwap is AragonApp {
 
         emit TokenSold(msg.sender, _poolId, sendAmount);
         _updatePoolData(_poolId, reserveBalance, poolBalance, newPrice);
-
     }
 }
