@@ -1,13 +1,18 @@
 {
   "roles": [
     {
-      "name": "Increment the counter",
-      "id": "INCREMENT_ROLE",
+      "name": "Liquidity provider",
+      "id": "PROVIDER",
       "params": []
     },
     {
-      "name": "Decrement the counter",
-      "id": "DECREMENT_ROLE",
+      "name": "buyer role",
+      "id": "BUYER",
+      "params": []
+    },
+    {
+      "name": "seller role",
+      "id": "SELLER",
       "params": []
     }
   ],
