@@ -16,6 +16,7 @@ contract TokenSwap is AragonApp {
     bytes32 public constant BUYER      = keccak256("BUYER");
     bytes32 public constant SELLER     = keccak256("SELLER");
 
+    uint256 public constant PCT_BASE = 10 ** 18; // 0% = 0; 1% = 10 ** 16; 100% = 10 ** 18
     uint32  public constant PPM = 1000000;  // parts per million
 
     string private constant ERROR_POOL_NOT_BALANCED                  = "MM_POOL_NOT_BALANCED";
@@ -222,8 +223,6 @@ contract TokenSwap is AragonApp {
         uint256 tokenBid          = initializedTokens[pools[_poolId].tokenB];
         uint256 totalTokenBsupply = tokens[tokenBid].totalSupply();
 
-        // require(poolProviders[pools[_poolId].provider][keccak256(abi.encodePacked(pools[_poolId].tokenA, pools[_poolId].tokenB))], 
-        //         ERROR_POOL_DOESNT_EXIST);
         require(_sufficientBalance(tokenBid, _tokenBamount, msg.sender), 
                 ERROR_INSUFFICIENT_BALANCE);
 
@@ -234,8 +233,10 @@ contract TokenSwap is AragonApp {
              totalTokenBsupply);
     }
 
-    /***** external function *****/
+    /***** internal functions *****/
     
+    /***** calculation functions *****/
+
     /**
     * @notice Calculate reserve ratio
     * @param _exchangeRate     The price of token A in token B
@@ -270,6 +271,25 @@ contract TokenSwap is AragonApp {
         returns(bool)
     {
         return (uint256(PPM).mul(_supplyA).div(_supplyB) == _exchangeRate);
+    }
+
+    /**
+    * @notice Calculates is the trade passing slippage limit
+    * @param _expectedPrice  Expected price in tokens A
+    * @param _actualPrice    Price calculates by Bancor formula
+    * @param _slippage       Maximum slippage in percentage
+    */
+    function _slippageLimitPassed(
+        uint _expectedPrice, 
+        uint _actualPrice, 
+        uint _slippage
+    )
+        internal
+        pure
+        returns(bool)
+    {
+
+        return _expectedPrice.sub(_actualPrice) <= _slippage.mul(_expectedPrice).div(PPM);
     }
 
     /* tokens related functions */
@@ -470,20 +490,20 @@ contract TokenSwap is AragonApp {
 
         uint256 _poolBalance        = pools[_poolId].tokenBsupply;
         uint256 _reserveBalance     = pools[_poolId].tokenAsupply;
-        uint32  _connectorWeight    = pools[_poolId].reserveRatio; //TODO: take a look at the convention
+        uint32  _connectorWeight    = pools[_poolId].reserveRatio; 
         uint256 _staticPrice        = pools[_poolId].exchageRate;                
         uint256 _slippage           = pools[_poolId].slippage;
 
         uint256 sendAmount = formula.calculatePurchaseReturn(_totalTokenBsupply, 
-                                                     _poolBalance, 
-                                                     _connectorWeight, 
-                                                     _tokenAamount);
+                                                             _poolBalance, 
+                                                             _connectorWeight, 
+                                                             _tokenAamount);
 
-        require (uint256(PPM).mul(_tokenAamount).add(_slippage) >= sendAmount.mul(_staticPrice),
-                 ERROR_SLIPPAGE_LIMIT_EXCEEDED);
+     require(_slippageLimitPassed(_tokenAamount, sendAmount.mul(_staticPrice).div(PPM), _slippage),
+            ERROR_SLIPPAGE_LIMIT_EXCEEDED);
+   
 
-
-        uint256 poolBalance          = _poolBalance.sub(sendAmount);  // send tokens to the buyer
+        uint256 poolBalance          = _poolBalance.sub(sendAmount); 
         uint256 reserveBalance       = _reserveBalance.add(_tokenAamount);
         uint256 newPrice             = uint256(PPM).mul(reserveBalance).div(poolBalance);
    
@@ -509,17 +529,17 @@ contract TokenSwap is AragonApp {
 
         uint256 _poolBalance        = pools[_poolId].tokenBsupply;
         uint256 _reserveBalance     = pools[_poolId].tokenAsupply;
-        uint32  _connectorWeight    = pools[_poolId].reserveRatio; //TODO: take a look at the convention
+        uint32  _connectorWeight    = pools[_poolId].reserveRatio; 
         uint256 _staticPrice        = pools[_poolId].exchageRate;                
-        uint256 _slippage          = pools[_poolId].slippage;  
+        uint256 _slippage           = pools[_poolId].slippage;  
 
         uint256 sendAmount  = formula.calculateSaleReturn(_totalTokenBsupply, 
                                                   _poolBalance, 
                                                   _connectorWeight, 
                                                   _tokenBamount);
 
-        require (uint256(PPM).mul(sendAmount) <= _tokenBamount.mul(_staticPrice).sub(_slippage),
-                 ERROR_SLIPPAGE_LIMIT_EXCEEDED);
+        require(_slippageLimitPassed(_tokenBamount.mul(_staticPrice).div(PPM), sendAmount, _slippage),
+            ERROR_SLIPPAGE_LIMIT_EXCEEDED);
         
         uint reserveBalance       = _reserveBalance.sub(sendAmount);
         uint poolBalance          = _poolBalance.add(_tokenBamount); 
