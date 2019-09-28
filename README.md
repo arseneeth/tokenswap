@@ -12,11 +12,12 @@ It is smart-contracts only app and doesn't have front-end yet.
 
 Prerequisites: `node`. `npm`, `aragon`, `ipfs`, `ganache-cli`
 
-Clone the repository 
+Clone the repo:
+`https://github.com/arsenyjin/tokenswap.git && cd tokenswap`
 
-`cd tokenswap`
-
+Install dependencies:
 `npm install`:
 
+Run tests:
 `npm test`
 
