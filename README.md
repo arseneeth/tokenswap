@@ -16,7 +16,7 @@ Clone the repo:
 `git clone https://github.com/arsenyjin/tokenswap.git && cd tokenswap`
 
 Install dependencies:
-`npm install`
+`npm install`:
 
 Run tests:
 `npm test`
