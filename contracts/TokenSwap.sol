@@ -35,8 +35,8 @@ contract TokenSwap is AragonApp {
         uint256 exchageRate;
         uint256 slippage;
         bool    isActive;
-        address tokenA; // Base Asset  
-        address tokenB; // Reserve Asset
+        address tokenA;  
+        address tokenB; 
     }
     
     IBancorFormula public formula;
