@@ -6,7 +6,7 @@ Aragon TokenSwap is a PoC implementation of an on-chain ERC20 token exchange bas
 
 In the current implementation Liquidity Provider can open a public pool of two interchangable ERC20 tokens, through the bonding curve mechanics the system adjusts exchange rates and balances so the pool always stays in equilibrium.  
 
-Current implementation does not include fees system and does not support multiple pool providers. This functionality could be added in the future. 
+Current implementation does not include fees system and does not support multiple providers for the same pool. This functionality could be added in the future. 
 
 It is smart-contracts-only app and doesn't have front-end yet.
 
@@ -52,4 +52,4 @@ Users can call `buy` and `sell` functions in order to buy or sell  `tokenB`. Use
 
 In order to prevent high price `slippage`, liquidity provider can set up the maximum slippage in percents and the system will automatically revert transactions with slippage higher than the limit through `_slippageLimitPassed` function. It checks if `expectedPrice-actualPrice <= _slippage*_expectedPrice`, if so the transaction will go through.
 
-
+In order to close the pool liquidity provider should call `closePool` function which will set pool's `isActive` status to `false` and return all the funds being allocated in the pool to the liquidity provider. 
