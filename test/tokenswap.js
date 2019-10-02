@@ -25,24 +25,24 @@ contract('TokenSwap', accounts => {
   const seller = accounts[3]
 
   const initialize = async open => {
-    const { dao, acl } = await deployDAO(rootUser)
+  const { dao, acl } = await deployDAO(rootUser)
 
-    const appBase = await TokenSwap.new()
-    const formula = await Formula.new()
+  const appBase = await TokenSwap.new()
+  const formula = await Formula.new()
 
-    const instanceReceipt = await dao.newAppInstance(
+  const instanceReceipt = await dao.newAppInstance(
       hash('tokenswap.aragonpm.test'), 
       appBase.address, 
       '0x', 
       false, 
       { from: rootUser }
     )
-    tokenSwap = TokenSwap.at(
+  tokenSwap = TokenSwap.at(
       getEventArgument(instanceReceipt, 'NewAppProxy', 'proxy')
     )
 
     // Set up the app's permissions.
-    await acl.createPermission(
+  await acl.createPermission(
       provider, 
       tokenSwap.address, 
       await tokenSwap.PROVIDER(), 
@@ -50,7 +50,7 @@ contract('TokenSwap', accounts => {
       { from: rootUser }
     )
 
-    await acl.createPermission(
+   await acl.createPermission(
       buyer, 
       tokenSwap.address, 
       await tokenSwap.BUYER(), 
@@ -58,7 +58,7 @@ contract('TokenSwap', accounts => {
       { from: rootUser }
     )
 
-    await acl.createPermission(
+   await acl.createPermission(
       seller, 
       tokenSwap.address, 
       await tokenSwap.SELLER(), 
@@ -66,18 +66,18 @@ contract('TokenSwap', accounts => {
       { from: rootUser }
     )
 
-    tokenA = await MiniMeToken.new(ZERO_ADDRESS, ZERO_ADDRESS, 0, 'Base', 18, 'BASE', true)
-    tokenB = await MiniMeToken.new(ZERO_ADDRESS, ZERO_ADDRESS, 0, 'Sub', 18, 'SUB', true)
+   tokenA = await MiniMeToken.new(ZERO_ADDRESS, ZERO_ADDRESS, 0, 'Base', 18, 'BASE', true)
+   tokenB = await MiniMeToken.new(ZERO_ADDRESS, ZERO_ADDRESS, 0, 'Sub', 18, 'SUB', true)
 
-    await tokenA.generateTokens(provider, INITIAL_TOKEN_BALANCE)
-    await tokenA.generateTokens(buyer, INITIAL_TOKEN_BALANCE)
-    await tokenB.generateTokens(provider, INITIAL_TOKEN_BALANCE)
-    await tokenB.generateTokens(seller, INITIAL_TOKEN_BALANCE)
+   await tokenA.generateTokens(provider, INITIAL_TOKEN_BALANCE)
+   await tokenA.generateTokens(buyer, INITIAL_TOKEN_BALANCE)
+   await tokenB.generateTokens(provider, INITIAL_TOKEN_BALANCE)
+   await tokenB.generateTokens(seller, INITIAL_TOKEN_BALANCE)
 
-    await tokenA.approve(tokenSwap.address, INITIAL_TOKEN_BALANCE, { from: provider })
-    await tokenB.approve(tokenSwap.address, INITIAL_TOKEN_BALANCE, { from: provider })
+   await tokenA.approve(tokenSwap.address, INITIAL_TOKEN_BALANCE, { from: provider })
+   await tokenB.approve(tokenSwap.address, INITIAL_TOKEN_BALANCE, { from: provider })
 
-    await tokenSwap.initialize(formula.address)
+   await tokenSwap.initialize(formula.address)
   }	  	
 
   beforeEach('deploy dao and app', async () => {
@@ -101,7 +101,7 @@ contract('TokenSwap', accounts => {
 
     assert.equal(await balanceA.toNumber(), tokenAsupply)
     assert.equal(await balanceB.toNumber(), tokenBsupply)
-	  assertEvent(receipt, 'PoolCreated')
+    assertEvent(receipt, 'PoolCreated')
   })
 
   it('it should not allow to create the same pool twice', async () => {
@@ -122,12 +122,11 @@ contract('TokenSwap', accounts => {
 	
     let receipt = await tokenSwap.createPool(tokenA.address, tokenB.address, tokenAsupply, tokenBsupply, slippage, exchangeRate, { from: provider })
 
-	  assertEvent(receipt, 'PoolCreated')
+    assertEvent(receipt, 'PoolCreated')
     
     receipt = await tokenSwap.closePool(0, { from: provider })
-
-	  assertEvent(receipt, 'PoolClosed')
-
+    
+    assertEvent(receipt, 'PoolClosed')
 
     let balanceA = await tokenA.balanceOf(tokenSwap.address);
     let balanceB = await tokenB.balanceOf(tokenSwap.address);
@@ -142,7 +141,7 @@ contract('TokenSwap', accounts => {
 	
     let receipt = await tokenSwap.createPool(tokenA.address, tokenB.address, tokenAsupply, tokenBsupply, slippage, exchangeRate, { from: provider })
 
-	  assertEvent(receipt, 'PoolCreated')
+    assertEvent(receipt, 'PoolCreated')
     
     receipt = await tokenSwap.closePool(0, { from: provider })
     await assertRevert(() => tokenSwap.closePool(0, { from: provider }))    
@@ -154,23 +153,23 @@ contract('TokenSwap', accounts => {
 	
     let receipt = await tokenSwap.createPool(tokenA.address, tokenB.address, tokenAsupply, tokenBsupply, slippage, exchangeRate, { from: provider })
 
-  	assertEvent(receipt, 'PoolCreated')
+    assertEvent(receipt, 'PoolCreated')
    
     await tokenSwap.closePool(0, { from: provider })
 
-	  receipt = await tokenSwap.createPool(tokenA.address, tokenB.address, tokenAsupply, tokenBsupply, slippage, exchangeRate, { from: provider })
+    receipt = await tokenSwap.createPool(tokenA.address, tokenB.address, tokenAsupply, tokenBsupply, slippage, exchangeRate, { from: provider })
 
-	  assertEvent(receipt, 'PoolCreated')
+    assertEvent(receipt, 'PoolCreated')
   })
 
  it('it should add liquidity to the pool', async () => {
 
     tokenAliquidity = new web3.BigNumber(4 * 10 ** 18)
     tokenBliqudity = new web3.BigNumber(2 * 10 ** 18)
+  
+    await tokenSwap.createPool(tokenA.address, tokenB.address, tokenAsupply, tokenBsupply, slippage, exchangeRate, { from: provider })
 
-	  await tokenSwap.createPool(tokenA.address, tokenB.address, tokenAsupply, tokenBsupply, slippage, exchangeRate, { from: provider })
-
-	  let receipt = await tokenSwap.addLiquidity(0, tokenAliquidity, tokenBliqudity, { from: provider })
+    let receipt = await tokenSwap.addLiquidity(0, tokenAliquidity, tokenBliqudity, { from: provider })
 
     let balanceA = await tokenA.balanceOf(tokenSwap.address);
     let balanceB = await tokenB.balanceOf(tokenSwap.address);
@@ -179,8 +178,8 @@ contract('TokenSwap', accounts => {
 
     assert.equal(await balanceA.toNumber(), pool[1])
     assert.equal(await balanceB.toNumber(), pool[2])
-	  assertEvent(receipt, 'PoolDataUpdated')
-
+    
+    assertEvent(receipt, 'PoolDataUpdated')
   })
 
  it('it should not allow to add liquidity twice due to issuficient balance', async () => {
@@ -192,19 +191,18 @@ contract('TokenSwap', accounts => {
     tokenBliqudity = new web3.BigNumber(6000 * 10 ** 18)
     exchangeRate = new web3.BigNumber(1*PPM) 
 
-	  await tokenSwap.createPool(tokenA.address, tokenB.address, tokenAsupply, tokenBsupply, slippage, exchangeRate, { from: provider })
-	  await tokenSwap.addLiquidity(0, tokenAliquidity, tokenBliqudity, { from: provider })
+    await tokenSwap.createPool(tokenA.address, tokenB.address, tokenAsupply, tokenBsupply, slippage, exchangeRate, { from: provider })
+    await tokenSwap.addLiquidity(0, tokenAliquidity, tokenBliqudity, { from: provider })
 
     await assertRevert(() => tokenSwap.addLiquidity(0, tokenAliquidity, tokenBliqudity, { from: provider }))    
   })
 
  it('it should not allow to add liquidity because pool is closed', async () => {
 
- 	  tokenAsupply = new web3.BigNumber(10000 * 10 ** 18)
+    tokenAsupply = new web3.BigNumber(10000 * 10 ** 18)
     tokenBsupply = new web3.BigNumber(10000 * 10 ** 18)
 
-
-	  await tokenSwap.createPool(tokenA.address, tokenB.address, tokenAsupply, tokenBsupply, slippage, exchangeRate, { from: provider })
+    await tokenSwap.createPool(tokenA.address, tokenB.address, tokenAsupply, tokenBsupply, slippage, exchangeRate, { from: provider })
     await tokenSwap.closePool(0, { from: provider })
 
     await assertRevert(() => tokenSwap.addLiquidity(0, tokenAliquidity, tokenBliqudity, { from: provider }))    
@@ -212,8 +210,7 @@ contract('TokenSwap', accounts => {
 
  it('it should remove liquidity from the pool', async () => {
 
-	  await tokenSwap.createPool(tokenA.address, tokenB.address, tokenAsupply, tokenBsupply, slippage, exchangeRate, { from: provider })
-
+    await tokenSwap.createPool(tokenA.address, tokenB.address, tokenAsupply, tokenBsupply, slippage, exchangeRate, { from: provider })
     await tokenSwap.removeLiquidity(0, tokenAliquidity, tokenBliqudity, { from: provider })    
 
   })
@@ -229,8 +226,8 @@ contract('TokenSwap', accounts => {
     await tokenC.approve(tokenSwap.address, INITIAL_TOKEN_BALANCE, { from: provider })
     await tokenD.approve(tokenSwap.address, INITIAL_TOKEN_BALANCE, { from: provider })
 
-	  await tokenSwap.createPool(tokenA.address, tokenB.address, tokenAsupply, tokenBsupply, slippage, exchangeRate, { from: provider })
-  	await tokenSwap.createPool(tokenC.address, tokenD.address, tokenAsupply, tokenBsupply, slippage, exchangeRate, { from: provider })
+    await tokenSwap.createPool(tokenA.address, tokenB.address, tokenAsupply, tokenBsupply, slippage, exchangeRate, { from: provider })
+    await tokenSwap.createPool(tokenC.address, tokenD.address, tokenAsupply, tokenBsupply, slippage, exchangeRate, { from: provider })
 
     await tokenSwap.removeLiquidity(0, tokenAliquidity, tokenBliqudity, { from: provider })    
 
@@ -246,7 +243,7 @@ it('it should buy tokens from the pool and pass slippage limit', async () => {
 
     tokenAamount = new web3.BigNumber(2 * 10 ** 18);
 
-	  await tokenSwap.createPool(tokenA.address, tokenB.address, tokenAsupply, tokenBsupply, slippage, exchangeRate, { from: provider })
+    await tokenSwap.createPool(tokenA.address, tokenB.address, tokenAsupply, tokenBsupply, slippage, exchangeRate, { from: provider })
 
     await tokenSwap.buy(0, tokenAamount, { from: buyer })
 
@@ -265,12 +262,12 @@ it('it should not allow to buy tokens from the pool dur to the low slippage limi
 
     tokenAsupply = new web3.BigNumber(4000 * 10 ** 18)
     tokenBsupply = new web3.BigNumber(1000 * 10 ** 18)
-
+	
     exchangeRate = new web3.BigNumber(tokenAsupply/tokenBsupply*PPM) 
 
     tokenAamount = new web3.BigNumber(2 * 10 ** 18);
 
-  	await tokenSwap.createPool(tokenA.address, tokenB.address, tokenAsupply, tokenBsupply, testSlippage, exchangeRate, { from: provider })
+    await tokenSwap.createPool(tokenA.address, tokenB.address, tokenAsupply, tokenBsupply, testSlippage, exchangeRate, { from: provider })
 
     await assertRevert(() => tokenSwap.buy(0, tokenAamount, { from: buyer }))        
   })
@@ -282,8 +279,8 @@ it('it should not allow to buy tokens from the non existing pool', async () => {
   })
 
 it('it should not allow to buy tokens from the closed pool', async () => {
-
-	  await tokenSwap.createPool(tokenA.address, tokenB.address, tokenAsupply, tokenBsupply, slippage, exchangeRate, { from: provider })
+    
+    await tokenSwap.createPool(tokenA.address, tokenB.address, tokenAsupply, tokenBsupply, slippage, exchangeRate, { from: provider })
     await tokenSwap.closePool(0, { from: provider })
     await assertRevert(() => tokenSwap.buy(0, tokenAamount, { from: buyer }))    
   })
@@ -291,13 +288,13 @@ it('it should not allow to buy tokens from the closed pool', async () => {
 
 it('it should sell tokens from the pool and pass slippage limit', async () => {
 
-	  let tokenBamount = new web3.BigNumber(3 * 10 ** 18);
+    let tokenBamount = new web3.BigNumber(3 * 10 ** 18);
 
-	  await tokenSwap.createPool(tokenA.address, tokenB.address, tokenAsupply, tokenBsupply, slippage, exchangeRate, { from: provider })
+    await tokenSwap.createPool(tokenA.address, tokenB.address, tokenAsupply, tokenBsupply, slippage, exchangeRate, { from: provider })
     await tokenSwap.sell(0, tokenBamount, { from: seller })    
 
     let tokensApaid = await tokenA.balanceOf(seller)
-	  let actualPrice = await tokensApaid.toNumber()
+    let actualPrice = await tokensApaid.toNumber()
     let expectedPrice = await (tokenBamount*exchangeRate/PPM)
 
     let slippageLimitPassed = await (expectedPrice-actualPrice >= slippage*PCT_BASE/PPM)
@@ -305,7 +302,7 @@ it('it should sell tokens from the pool and pass slippage limit', async () => {
 
 it('it should not allow to sell tokens to the closed pool', async () => {
 
-	  await tokenSwap.createPool(tokenA.address, tokenB.address, tokenAsupply, tokenBsupply, slippage, exchangeRate, { from: provider })
+    await tokenSwap.createPool(tokenA.address, tokenB.address, tokenAsupply, tokenBsupply, slippage, exchangeRate, { from: provider })
     await tokenSwap.closePool(0, { from: provider })
     await assertRevert(() => tokenSwap.sell(0, tokenAamount, { from: buyer }))    
   })
@@ -314,7 +311,6 @@ it('it should not allow to sell tokens to the pool due to the low slippage limit
 
     let testSlippage = new web3.BigNumber(0.0001*PPM);
 
-
     tokenAsupply = new web3.BigNumber(4000 * 10 ** 18)
     tokenBsupply = new web3.BigNumber(1000 * 10 ** 18)
 
@@ -322,10 +318,8 @@ it('it should not allow to sell tokens to the pool due to the low slippage limit
 
     tokenAamount = new web3.BigNumber(2 * 10 ** 18);
 
-	  await tokenSwap.createPool(tokenA.address, tokenB.address, tokenAsupply, tokenBsupply, testSlippage, exchangeRate, { from: provider })
+    await tokenSwap.createPool(tokenA.address, tokenB.address, tokenAsupply, tokenBsupply, testSlippage, exchangeRate, { from: provider })
 
     await assertRevert(() => tokenSwap.buy(0, tokenAamount, { from: buyer }))        
   })
-
-
 })
